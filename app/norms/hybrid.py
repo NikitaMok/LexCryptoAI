@@ -26,15 +26,24 @@ def fuse(*rankings: list[SearchHit], limit: int = 5, k: int = RRF_K) -> list[Sea
     ]
 
 
-def hybrid_search(query: str, limit: int = 5, act: str | None = None) -> list[SearchHit]:
+def hybrid_search(
+    query: str,
+    limit: int = 5,
+    act: str | None = None,
+    *,
+    use_dense: bool | None = None,
+) -> list[SearchHit]:
     pool = max(limit * 4, 12)
     lexical = get_search().search(query, limit=pool, act=act)
     dense_hits: list[SearchHit] = []
+    want_dense = use_dense
     try:
         from app.core.config import get_settings
         from app.norms.dense import dense_available, get_dense
 
-        if get_settings().dense_search and dense_available():
+        if want_dense is None:
+            want_dense = get_settings().dense_search
+        if want_dense and dense_available():
             dense_hits = get_dense().search(query, limit=pool, act=act)
     except Exception:
         dense_hits = []

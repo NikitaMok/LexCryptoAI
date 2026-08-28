@@ -4,8 +4,9 @@
 Образец разрыва — «возврат валюты в Россию» и репатриация.
 
 Модель не входит в обязательные зависимости и не ставится в CI.
-Если пакета или весов нет, слой молча не участвует: лексический поиск
-продолжает работать.
+Векторы корпуса пишутся в `data/chroma/norm_vectors.bin` и при следующем
+запуске не пересчитываются. Если пакета или весов нет, слой молча
+не участвует: лексический поиск продолжает работать.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from functools import lru_cache
 from app.core.config import get_settings
 from app.norms.index import Norm, NormIndex
 from app.norms.search import SearchHit
+from app.norms.vectors import CACHE_NAME, corpus_fingerprint, load_vectors, save_vectors
 
 DEFAULT_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
@@ -77,14 +79,36 @@ class DenseNormSearch:
         cls,
         index: NormIndex | None = None,
         model_name: str | None = None,
+        *,
+        force: bool = False,
     ) -> DenseNormSearch:
         from fastembed import TextEmbedding
 
+        settings = get_settings()
         source = index or NormIndex.load()
         usable = [norm for norm in source._norms if norm.has_text]  # noqa: SLF001
-        name = model_name or get_settings().embedding_model or DEFAULT_MODEL
+        name = model_name or settings.embedding_model or DEFAULT_MODEL
+        fingerprint = corpus_fingerprint(usable, name)
+        cache_path = settings.chroma_persist_dir / CACHE_NAME
+
+        cached = None if force else load_vectors(
+            cache_path, model_name=name, fingerprint=fingerprint
+        )
         model = TextEmbedding(model_name=name)
-        vectors = [list(map(float, vector)) for vector in model.embed(norm.text for norm in usable)]
+
+        if cached is not None and all(norm.reference in cached for norm in usable):
+            vectors = [cached[norm.reference] for norm in usable]
+        else:
+            vectors = [list(map(float, vector)) for vector in model.embed(norm.text for norm in usable)]
+            try:
+                save_vectors(
+                    cache_path,
+                    model_name=name,
+                    fingerprint=fingerprint,
+                    pairs=[(norm.reference, vector) for norm, vector in zip(usable, vectors, strict=True)],
+                )
+            except OSError:
+                pass
 
         def encode_query(text: str) -> list[float]:
             return list(map(float, next(model.embed([text]))))

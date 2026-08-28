@@ -178,6 +178,9 @@ python -m scripts.check_contract договор.docx --on 2026-09-01 --pdf за�
 
 ```bash
 python -m scripts.check_contract --search "репатриация цифровой валюты"
+python -m scripts.embed_norms
+python -m scripts.check_contract --search "возврат валюты в Россию" --dense
+python -m scripts.eval_fixtures
 ```
 
 Тот же проход доступен по HTTP: файл принимается, проверяется и сразу удаляется.
@@ -213,9 +216,9 @@ curl -F file=@договор.docx "http://127.0.0.1:8000/check/pdf?on=2026-09-01
 (BM25 с отсечением окончаний); HTTP-приём контракта, PDF-заключение и страница
 загрузки в браузере.
 
-В работе: поиск близких норм по эмбеддингам (код есть, включается
-`DENSE_SEARCH=true` и пакетом fastembed; в CI выключен), семантическое
-извлечение оговорок, постановка на VPS.
+В работе: семантическое извлечение оговорок, постановка на VPS.
+Поиск по эмбеддингам включается после `python -m scripts.embed_norms`
+и `DENSE_SEARCH=true` (или `--dense`).
 
 ---
 

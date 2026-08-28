@@ -35,7 +35,20 @@ if STATIC_DIR.is_dir():
 @app.get("/health")
 async def health() -> dict[str, str]:
     settings = get_settings()
-    return {"status": "ok", "env": settings.app_env, "version": app.version}
+    dense = "off"
+    try:
+        from app.norms.dense import dense_available
+
+        if settings.dense_search and dense_available():
+            dense = "on"
+    except Exception:
+        dense = "off"
+    return {
+        "status": "ok",
+        "env": settings.app_env,
+        "version": app.version,
+        "dense": dense,
+    }
 
 
 @app.get("/")

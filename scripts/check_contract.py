@@ -3,6 +3,7 @@
     python -m scripts.check_contract путь/к/договору.docx
     python -m scripts.check_contract договор.pdf --on 2027-07-01
     python -m scripts.check_contract --search "репатриация цифровой валюты"
+    python -m scripts.check_contract --search "возврат валюты в Россию" --dense
     python -m scripts.check_contract договор.docx --on 2026-09-01 --pdf заключение.pdf
 """
 
@@ -85,8 +86,13 @@ def _print_findings(
         print()
 
 
-def print_search(query: str, limit: int = 8) -> None:
-    hits = hybrid_search(query, limit=limit)
+def print_search(query: str, limit: int = 8, *, use_dense: bool | None = None) -> None:
+    if use_dense:
+        from app.norms.dense import dense_available
+
+        if not dense_available():
+            print("эмбеддинги недоступны, ищу только по словам", file=sys.stderr)
+    hits = hybrid_search(query, limit=limit, use_dense=use_dense)
     print(f"Запрос: {query}")
     print(RULE)
     if not hits:
@@ -182,12 +188,20 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="оценить извлечённые адреса по открытым данным (не цифровой анализ)",
     )
+    parser.add_argument(
+        "--dense",
+        action="store_true",
+        help="подключить поиск по эмбеддингам (нужен fastembed и кэш векторов)",
+    )
     args = parser.parse_args(argv)
+
+    if args.dense and args.search is None:
+        parser.error("--dense только вместе с --search")
 
     if args.search is not None:
         if args.path is not None or args.pdf is not None or args.aml:
             parser.error("укажите либо путь к контракту, либо --search")
-        print_search(args.search)
+        print_search(args.search, use_dense=True if args.dense else None)
         return 0
 
     if args.path is None:
