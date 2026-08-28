@@ -2,11 +2,12 @@
 # Состав кодов, серьёзность и ссылки на нормы должны совпадать со спецификацией:
 # синхронность проверяется тестом tests/test_rules_config.py.
 #
-# Поле check заполняется по мере разработки движка проверки. Пока оно равно null,
-# правило спроектировано юристом, но ещё не автоматизировано.
+# Поле check указывает имя детерминированной проверки из app/rules/predicates.py.
+# Значение null означает, что правило спроектировано юристом, но требует
+# ручной оценки: автоматизировать его либо нельзя, либо ещё нечем.
 
-version: "1.0"
-updated: "2026-08-28"
+version: "1.1"
+updated: "2026-08-29"
 
 legal_basis:
   - "Федеральный закон от 04.08.2026 № 282-ФЗ «О цифровых валютах и цифровых правах»"
@@ -36,7 +37,7 @@ rules:
       - {act: "282-ФЗ", ref: "ст. 1 ч. 7 п. 1"}
       - {act: "282-ФЗ", ref: "ст. 31 ч. 5 п. 6"}
     sanction: "Расчёты попадают под запрет ч. 6 ст. 1; отказ цифрового депозитария в зачислении; отказ банка в постановке на учёт"
-    check: null
+    check: {predicate: foreign_trade_qualified}
     example_bad: "Покупатель оплачивает Товар в USDT."
     example_good: "Настоящий Договор является внешнеторговым договором (контрактом), заключённым между Покупателем — резидентом Российской Федерации и Поставщиком — нерезидентом, и предусматривает передачу Товара. Расчёты производятся цифровой валютой на основании пункта 1 части 7 статьи 1 Федерального закона от 04.08.2026 № 282-ФЗ."
 
@@ -48,7 +49,7 @@ rules:
     norm_refs:
       - {act: "282-ФЗ", ref: "ст. 1 ч. 7 п. 1"}
     sanction: "Сделка не подпадает под исключение из запрета; операция признаётся недопустимой"
-    check: null
+    check: {predicate: subject_matter_declared}
 
   - code: FTC-003
     group: A
@@ -59,7 +60,7 @@ rules:
       - {act: "282-ФЗ", ref: "ст. 1 ч. 7 п. 1"}
       - {act: "173-ФЗ", ref: "ст. 1 ч. 1"}
     sanction: "Невозможность подтвердить состав сторон исключения; запрос банка, приостановка операции"
-    check: null
+    check: {predicate: parties_identified}
 
   - code: FTC-004
     group: A
@@ -79,7 +80,7 @@ rules:
     norm_refs:
       - {act: "282-ФЗ", ref: "ст. 1 ч. 7 п. 1"}
     sanction: "Дополнительные запросы банка при постановке на учёт"
-    check: null
+    check: {predicate: cites_exemption}
 
   # --- B. Актив ---
   - code: AST-001
@@ -90,7 +91,7 @@ rules:
     norm_refs:
       - {act: "282-ФЗ", ref: "ст. 2 ч. 1 п. 1"}
     sanction: "Невозможность идентифицировать предмет платежа; риск переквалификации операции"
-    check: null
+    check: {predicate: asset_identified}
     example_bad: "Оплата производится в стейблкоинах."
     example_good: "Оплата производится цифровой валютой Tether USD (тикер USDT), эмитент Tether Limited, в сети TRON, стандарт токена TRC-20."
 
@@ -103,7 +104,7 @@ rules:
       - {act: "282-ФЗ", ref: "ст. 1 ч. 7 п. 1"}
       - {act: "282-ФЗ", ref: "ст. 31 ч. 5 п. 6"}
     sanction: "Отказ депозитария в зачислении: отсутствует основание, предусмотренное п. 6 ч. 5 ст. 31"
-    check: null
+    check: {predicate: payment_purpose_declared}
 
   - code: AST-003
     group: B
@@ -135,7 +136,7 @@ rules:
       - {act: "282-ФЗ", ref: "ст. 24 ч. 1-2"}
       - {act: "282-ФЗ", ref: "ст. 17"}
     sanction: "Блокировка по 115-ФЗ; отказ банка в постановке на учёт; невозможность подтвердить обладание активом"
-    check: null
+    check: {predicate: identifier_address_used}
     example_bad: "Оплата производится на кошелёк TQn9Y2khEsLJW1ChVWFMSMeRDow5KcbLSE."
     example_good: "Оплата производится на адрес-идентификатор, доступ к которому предоставляет ООО «…» — цифровой депозитарий, включённый в реестр Банка России (реестровый номер …). Адрес-идентификатор указывается сторонами в Дополнительном соглашении и подтверждается выпиской цифрового депозитария."
 
@@ -148,7 +149,7 @@ rules:
       - {act: "282-ФЗ", ref: "ст. 17"}
       - {act: "282-ФЗ", ref: "ст. 52"}
     sanction: "Расчёты через лицо без права на деятельность; последствия по ст. 21"
-    check: null
+    check: {predicate: depositary_registry_reference}
 
   - code: ADR-003
     group: C
@@ -158,7 +159,7 @@ rules:
     norm_refs:
       - {act: "282-ФЗ", ref: "ст. 24 ч. 4"}
     sanction: "Отсутствие доказательства обладания активом в споре и перед банком"
-    check: null
+    check: {predicate: depositary_statement_right}
 
   - code: ADR-004
     group: C
@@ -189,7 +190,7 @@ rules:
     norm_refs:
       - {act: "282-ФЗ", ref: "ст. 34"}
     sanction: "Спор о сумме исполнения; замечания валютного контроля"
-    check: null
+    check: {predicate: rate_source_fixed}
 
   - code: RTE-002
     group: D
@@ -199,7 +200,7 @@ rules:
     norm_refs:
       - {act: "282-ФЗ", ref: "ст. 30 ч. 3"}
     sanction: "Спор об исполнении обязательства при незавершённой транзакции"
-    check: null
+    check: {predicate: record_moment_clause}
     example_bad: "Обязательство по оплате считается исполненным с момента отправки Покупателем перевода."
     example_good: "Обязательство по оплате считается исполненным с момента внесения записи о зачислении цифровой валюты на адрес-идентификатор Поставщика в информационной системе, в которой учитывается указанная цифровая валюта (часть 3 статьи 30 Федерального закона от 04.08.2026 № 282-ФЗ)."
 
@@ -211,7 +212,7 @@ rules:
     norm_refs:
       - {act: "282-ФЗ", ref: "ст. 1 ч. 7 п. 3"}
     sanction: "Недоплата по договору на сумму сетевой комиссии"
-    check: null
+    check: {predicate: network_fees_allocated}
 
   - code: RTE-004
     group: D
@@ -232,7 +233,7 @@ rules:
       - {act: "115-ФЗ", ref: "ст. 7.2-1 п. 1 подп. 2"}
       - {act: "115-ФЗ", ref: "ст. 7.2-1 п. 1 подп. 4"}
     sanction: "Депозитарий обязан отказать в исполнении поручения (п. 5 ст. 7.2-1)"
-    check: null
+    check: {predicate: party_details_present}
 
   - code: TRV-002
     group: E
@@ -242,7 +243,7 @@ rules:
     norm_refs:
       - {act: "115-ФЗ", ref: "ст. 7.2-1 п. 1"}
     sanction: "Отказ в исполнении поручения; отклонение операции принимающей стороной"
-    check: null
+    check: {predicate: party_details_above_travel_rule_threshold}
 
   - code: TRV-003
     group: E
@@ -264,7 +265,7 @@ rules:
     norm_refs:
       - {act: "115-ФЗ", ref: "ст. 6 п. 1.12"}
     sanction: "Операция подлежит обязательному контролю; запросы Росфинмониторинга, приостановка"
-    check: null
+    check: {predicate: mandatory_control_readiness}
 
   - code: THR-002
     group: F
@@ -274,7 +275,7 @@ rules:
     norm_refs:
       - {act: "181-И", ref: "требует сверки редакции"}
     sanction: "Отказ банка в проведении операции; административная ответственность"
-    check: null
+    check: {predicate: bank_registration_clause}
 
   - code: THR-003
     group: F
@@ -297,7 +298,7 @@ rules:
       - {act: "282-ФЗ", ref: "ст. 35"}
       - {act: "115-ФЗ", ref: "ст. 7.2-1 п. 9"}
     sanction: "Убытки от заморозки относятся на сторону, не защищённую договором"
-    check: null
+    check: {predicate: risk_allocation_clause}
 
   - code: AML-002
     group: G
@@ -317,7 +318,7 @@ rules:
     norm_refs:
       - {act: "282-ФЗ", ref: "ст. 35"}
     sanction: "Обязанность исполнить платёж при известном риске заморозки"
-    check: null
+    check: {predicate: suspension_right}
 
   - code: AML-004
     group: G
@@ -327,7 +328,7 @@ rules:
     norm_refs:
       - {act: "282-ФЗ", ref: "ст. 35 ч. 1"}
     sanction: "Отсутствие основания для регресса при выявлении связи актива с противоправной деятельностью"
-    check: null
+    check: {predicate: origin_representation}
 
   # --- H. Документооборот и отчётность ---
   - code: RPT-001
@@ -338,7 +339,7 @@ rules:
     norm_refs:
       - {act: "173-ФЗ", ref: "ст. 23 ч. 18"}
     sanction: "Невозможность подтвердить операцию перед банком и налоговым органом"
-    check: null
+    check: {predicate: supporting_documents_obligation}
 
   - code: RPT-002
     group: H
@@ -349,7 +350,7 @@ rules:
       - {act: "282-ФЗ", ref: "ст. 23 ч. 11"}
       - {act: "282-ФЗ", ref: "ст. 39"}
     sanction: "Отсутствие документов при проверке"
-    check: null
+    check: {predicate: retention_period}
 
   - code: RPT-003
     group: H

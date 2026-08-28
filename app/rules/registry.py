@@ -26,6 +26,12 @@ class NormRef(BaseModel):
         return f"{self.act}, {self.ref}"
 
 
+class Check(BaseModel):
+    """Имя детерминированной проверки из app/rules/predicates.py."""
+
+    predicate: str
+
+
 class Rule(BaseModel):
     code: str
     group: str
@@ -36,7 +42,7 @@ class Rule(BaseModel):
     # None означает, что норма ещё не введена в действие: правило хранится
     # в матрице неактивным и активируется при появлении подзаконного акта
     effective_from: date | None = None
-    check: dict | None = None
+    check: Check | None = None
     example_bad: str | None = None
     example_good: str | None = None
 
@@ -76,6 +82,12 @@ class RuleSet(BaseModel):
 
     def mandatory(self) -> list[Rule]:
         return [rule for rule in self.rules if rule.severity is Severity.MANDATORY]
+
+    def automated(self) -> list[Rule]:
+        return [rule for rule in self.rules if rule.check is not None]
+
+    def manual(self) -> list[Rule]:
+        return [rule for rule in self.rules if rule.check is None]
 
     def active_on(self, moment: date) -> list[Rule]:
         return [rule for rule in self.rules if rule.is_active_on(moment)]
