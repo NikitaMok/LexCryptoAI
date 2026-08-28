@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+
+# секреты — в git только .env.example
+.env
+.env.*
+!.env.example
+*.env.local
+*credentials*
+*secrets*
+
+# нормативные тексты и промежуточные данные пайплайна
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/curated/
+!data/curated/**
+data/backups/
+
+# загруженные контракты не должны попадать в git ни при каких условиях
+data/uploads/
+tmp/
+
+# векторный индекс пересобирается из data/curated
+data/chroma/*
+!data/chroma/.gitkeep
+
+# DB
+*.db
+*.sqlite3
+llm_cache.json
+**/llm_cache.json
+
+# сгенерированные PDF-заключения
+data/reports/
+*.generated.pdf
+
+# внутренние документы: бизнес-модель, цены, персональные данные
+_local/
+
+# IDE / локальные настройки редактора
+.vscode/
+.idea/
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# отчёты eval — артефакты прогонов
+data/eval/last_run.json
+
+# frontend
+node_modules/
+.next/
+out/
