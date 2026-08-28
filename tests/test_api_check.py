@@ -32,6 +32,7 @@ class TestCheckEndpoint:
         assert payload["source"] == compliant_docx.name
         assert payload["counts"]["total"] == 32
         assert payload["blocking"] == []
+        assert payload["address_scores"] == []
         assert "text" not in payload
 
     def test_violating_contract_is_red(self, violating_docx: Path, tmp_path, monkeypatch):

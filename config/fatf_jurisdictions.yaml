@@ -1,0 +1,42 @@
+# Перечень для правила AML-002.
+#
+# Подпункт 2 пункта 1 статьи 6 № 115-ФЗ: перечень государств (территорий),
+# не выполняющих рекомендации ФАТФ, определяется Правительством Российской
+# Федерации с учётом документов ФАТФ и подлежит опубликованию.
+# Российский перечень на дату снимка не найден. До его появления используется
+# заявление ФАТФ «High-Risk Jurisdictions subject to a Call for Action»
+# от 19 июня 2026 года как ориентир, а не как официальный российский акт.
+#
+# Серая зона ФАТФ (increased monitoring) в снимок не входит: норма говорит
+# о государствах, которые не выполняют рекомендации, а не о государствах
+# под усиленным наблюдением.
+
+as_of: "2026-06-19"
+source: "FATF, High-Risk Jurisdictions subject to a Call for Action, 19 June 2026"
+source_url: "https://www.fatf-gafi.org/en/publications/High-risk-and-other-monitored-jurisdictions/call-for-action-june-2026.html"
+
+jurisdictions:
+  - iso2: KP
+    names:
+      - КНДР
+      - Корейская Народно-Демократическая Республика
+      - Северная Корея
+      - DPRK
+      - North Korea
+      - Democratic People's Republic of Korea
+  - iso2: IR
+    names:
+      - Иран
+      - Ирана
+      - Иране
+      - Ираном
+      - Исламская Республика Иран
+      - Iran
+  - iso2: MM
+    names:
+      - Мьянма
+      - Мьянме
+      - Мьянмы
+      - Бирма
+      - Myanmar
+      - Burma

@@ -25,8 +25,12 @@ class Settings(BaseSettings):
 
     chroma_persist_dir: Path = PROJECT_ROOT / "data" / "chroma"
     chroma_collection: str = "legal_norms"
+    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    dense_search: bool = False
 
     aml_risk_threshold: int = 50
+    trongrid_api_key: str = ""
+    etherscan_api_key: str = ""
     hitl_confidence_threshold: float = 0.8
 
     upload_tmp_dir: Path = PROJECT_ROOT / "tmp" / "uploads"

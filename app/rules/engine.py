@@ -34,6 +34,7 @@ _VERDICT_TO_STATUS = {
     Verdict.PASSED: FindingStatus.PASSED,
     Verdict.FAILED: FindingStatus.FAILED,
     Verdict.NOT_APPLICABLE: FindingStatus.NOT_APPLICABLE,
+    Verdict.UNRESOLVED: FindingStatus.NOT_AUTOMATED,
 }
 
 

@@ -14,8 +14,8 @@ import textwrap
 from datetime import date
 from pathlib import Path
 
+from app.norms.hybrid import hybrid_search
 from app.norms.index import NormIndex, get_norms
-from app.norms.search import get_search
 from app.parsing.document import EmptyDocumentError, UnsupportedFormatError
 from app.report.serialize import STATUS_LABEL
 from app.rules.contract import ContractView
@@ -86,7 +86,7 @@ def _print_findings(
 
 
 def print_search(query: str, limit: int = 8) -> None:
-    hits = get_search().search(query, limit=limit)
+    hits = hybrid_search(query, limit=limit)
     print(f"Запрос: {query}")
     print(RULE)
     if not hits:
@@ -95,6 +95,25 @@ def print_search(query: str, limit: int = 8) -> None:
     for hit in hits:
         print(f"{hit.norm.reference}  ({hit.score:.2f})")
         print(_wrap(hit.norm.text, indent="    "))
+        print()
+
+
+def print_address_scores(scores: list) -> None:
+    if not scores:
+        return
+    print(f"\nАДРЕСА ПО ОТКРЫТЫМ ДАННЫМ\n{RULE}")
+    for item in scores:
+        payload = item.to_dict() if hasattr(item, "to_dict") else item
+        line = f"{payload.get('address')} ({payload.get('network')}): {payload.get('band')}"
+        if payload.get("score") is not None:
+            line += f", оценка {payload['score']}"
+        print(line)
+        for factor in payload.get("factors") or []:
+            print(f"    {factor}")
+        if payload.get("error"):
+            print(f"    {payload['error']}")
+        if payload.get("disclaimer"):
+            print(_wrap(str(payload["disclaimer"]), indent="    "))
         print()
 
 
@@ -158,10 +177,15 @@ def main(argv: list[str] | None = None) -> int:
         metavar="PATH",
         help="сохранить заключение в PDF",
     )
+    parser.add_argument(
+        "--aml",
+        action="store_true",
+        help="оценить извлечённые адреса по открытым данным (не цифровой анализ)",
+    )
     args = parser.parse_args(argv)
 
     if args.search is not None:
-        if args.path is not None or args.pdf is not None:
+        if args.path is not None or args.pdf is not None or args.aml:
             parser.error("укажите либо путь к контракту, либо --search")
         print_search(args.search)
         return 0
@@ -176,7 +200,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     report = evaluate(contract, moment=args.on)
+    scores = []
+    if args.aml:
+        from app.aml.service import score_contract_addresses
+
+        scores = score_contract_addresses(contract)
+
     print_report(report, args.path, quote_norms=args.quote_norms)
+    print_address_scores(scores)
 
     if args.pdf is not None:
         from app.report.pdf import MissingCyrillicFontError, write_pdf
@@ -187,6 +218,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.pdf,
                 source_name=args.path.name,
                 quote_norms=args.quote_norms,
+                address_scores=scores,
             )
         except (MissingCyrillicFontError, OSError) as error:
             print(f"Ошибка: {error}", file=sys.stderr)

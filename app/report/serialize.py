@@ -84,6 +84,7 @@ def serialize_report(
     *,
     source_name: str,
     quote_norms: bool = False,
+    address_scores: list | None = None,
 ) -> dict:
     index = get_norms() if quote_norms else None
 
@@ -91,7 +92,7 @@ def serialize_report(
         quoted = quote_norms_for(finding, index) if with_quotes and index else None
         return finding_to_dict(finding, quoted=quoted)
 
-    return {
+    payload = {
         "status": report.status.value,
         "status_label": STATUS_LABEL[report.status],
         "source": source_name,
@@ -108,4 +109,9 @@ def serialize_report(
             if finding.status is FindingStatus.DEFERRED
         ],
         "manual": [_dump(finding, with_quotes=False) for finding in report.needs_manual_review()],
+        "address_scores": [
+            item.to_dict() if hasattr(item, "to_dict") else item
+            for item in (address_scores or [])
+        ],
     }
+    return payload

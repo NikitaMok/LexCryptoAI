@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -27,6 +28,8 @@ class Verdict(str, Enum):
     PASSED = "passed"
     FAILED = "failed"
     NOT_APPLICABLE = "not_applicable"
+    # проверка есть, но по тексту договора вывод сделать нельзя
+    UNRESOLVED = "unresolved"
 
 
 @dataclass(frozen=True)
@@ -69,6 +72,10 @@ def _failed(evidence: str, clauses: tuple[str, ...] = ()) -> Outcome:
 
 def _skip(evidence: str) -> Outcome:
     return Outcome(Verdict.NOT_APPLICABLE, evidence)
+
+
+def _unresolved(evidence: str, clauses: tuple[str, ...] = ()) -> Outcome:
+    return Outcome(Verdict.UNRESOLVED, evidence, clauses)
 
 
 def _clause_numbers(contract: ContractView, *patterns: str) -> tuple[str, ...]:
@@ -388,6 +395,40 @@ def origin_representation(contract: ContractView) -> Outcome:
         return _passed("контрагент заверяет о происхождении цифровой валюты")
 
     return _failed("нет заверения о происхождении цифровой валюты")
+
+
+@register("fatf_jurisdiction_addressed")
+def fatf_jurisdiction_addressed(contract: ContractView) -> Outcome:
+    from app.aml.fatf import get_fatf_snapshot
+
+    snapshot = get_fatf_snapshot()
+    disclosure = contract.has_any(
+        r"ФАТФ",
+        r"не\s+выполня\w*\s+рекомендац",
+        r"обязательн\w+\s+контрол\w+\s+независимо\s+от\s+сумм",
+    )
+    if disclosure:
+        return _passed(
+            "юрисдикция площадки и режим обязательного контроля по ФАТФ оговорены",
+            _clause_numbers(contract, r"ФАТФ")
+            or _clause_numbers(contract, r"не\s+выполня\w*\s+рекомендац"),
+        )
+
+    matched = snapshot.match_in(contract.text)
+    if matched:
+        names = ", ".join(item.names[0] for item in matched)
+        return _failed(
+            "в договоре названо государство из снимка перечня ФАТФ "
+            f"({snapshot.as_of}): {names}; нет оговорки об обязательном контроле "
+            "независимо от суммы",
+            _clause_numbers(contract, re.escape(matched[0].names[0])),
+        )
+
+    return _unresolved(
+        "юрисдикция организации, администрирующей адрес-идентификатор, "
+        f"в договоре не названа. Снимок перечня ФАТФ от {snapshot.as_of} "
+        "подменяет официальный перечень Правительства РФ, пока тот не опубликован"
+    )
 
 
 # --- H. Документооборот ---

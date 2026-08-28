@@ -79,6 +79,7 @@ SECTION_BLOCKING = "Нарушены обязательные требовани
 SECTION_ADVISORY = "Замечания"
 SECTION_DEFERRED = "Нормы, вступающие в силу позднее"
 SECTION_MANUAL = "Требует оценки юриста"
+SECTION_ADDRESSES = "Адреса по открытым данным"
 
 
 class MissingCyrillicFontError(RuntimeError):
@@ -249,8 +250,17 @@ def render_pdf(
     *,
     source_name: str,
     quote_norms: bool = False,
+    address_scores: list | None = None,
 ) -> bytes:
-    for fragment in (TITLE, SUBTITLE, DISCLAIMER, FOOTER, SECTION_BLOCKING, SECTION_ADVISORY):
+    for fragment in (
+        TITLE,
+        SUBTITLE,
+        DISCLAIMER,
+        FOOTER,
+        SECTION_BLOCKING,
+        SECTION_ADVISORY,
+        SECTION_ADDRESSES,
+    ):
         assert_clean(fragment)
 
     font = _ensure_font()
@@ -308,6 +318,24 @@ def render_pdf(
         for finding in manual:
             story.append(Paragraph(_xml(f"[{finding.code}] {finding.title}"), styles["body"]))
 
+    if address_scores:
+        story.append(Paragraph(_xml(SECTION_ADDRESSES), styles["heading"]))
+        for item in address_scores:
+            payload = item.to_dict() if hasattr(item, "to_dict") else item
+            line = (
+                f"{payload.get('address')} ({payload.get('network')}): "
+                f"{payload.get('band')}"
+            )
+            if payload.get("score") is not None:
+                line += f", оценка {payload['score']}"
+            story.append(Paragraph(_xml(line), styles["body"]))
+            for factor in payload.get("factors") or []:
+                story.append(Paragraph(_xml(factor), styles["indent"]))
+            if payload.get("error"):
+                story.append(Paragraph(_xml(str(payload["error"])), styles["indent"]))
+            if payload.get("disclaimer"):
+                story.append(Paragraph(_xml(str(payload["disclaimer"])), styles["quote"]))
+
     story.append(Paragraph(_xml(DISCLAIMER), styles["disclaimer"]))
 
     buffer = BytesIO()
@@ -331,7 +359,13 @@ def write_pdf(
     *,
     source_name: str,
     quote_norms: bool = False,
+    address_scores: list | None = None,
 ) -> None:
     path.write_bytes(
-        render_pdf(report, source_name=source_name, quote_norms=quote_norms)
+        render_pdf(
+            report,
+            source_name=source_name,
+            quote_norms=quote_norms,
+            address_scores=address_scores,
+        )
     )

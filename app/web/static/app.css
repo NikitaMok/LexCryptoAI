@@ -1,0 +1,134 @@
+:root {
+  --ink: #1c1916;
+  --muted: #5c564e;
+  --paper: #f6f1e8;
+  --card: #fffdf8;
+  --line: #d6cfc3;
+  --red: #8a1f1f;
+  --green: #1b5e20;
+  --yellow: #8a4b00;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Georgia", "Times New Roman", serif;
+  color: var(--ink);
+  background: var(--paper);
+  line-height: 1.5;
+}
+
+header, main, footer {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem;
+}
+
+.brand {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+}
+
+h1, h2 {
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+h1 { font-size: 1.6rem; margin: 0 0 0.75rem; }
+h2 { font-size: 1.15rem; }
+
+.lead, .hint, footer p {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+form {
+  background: var(--card);
+  border: 1px solid var(--line);
+  padding: 1.25rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+}
+
+label.check {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 0.5rem;
+}
+
+input[type="file"],
+input[type="date"],
+input[type="text"] {
+  font: inherit;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+button {
+  font: inherit;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: #fff;
+  cursor: pointer;
+}
+
+button[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button[type="button"] {
+  background: transparent;
+  color: var(--ink);
+}
+
+#error {
+  color: var(--red);
+}
+
+.status {
+  font-size: 1.1rem;
+  margin: 0 0 0.75rem;
+}
+
+.status.red { color: var(--red); }
+.status.green { color: var(--green); }
+.status.yellow { color: var(--yellow); }
+
+.finding {
+  border-top: 1px solid var(--line);
+  padding: 0.75rem 0;
+}
+
+.finding p { margin: 0.25rem 0; }
+
+.search-block {
+  margin-top: 2rem;
+}
+
+.search-hit {
+  border-top: 1px solid var(--line);
+  padding: 0.75rem 0;
+  font-size: 0.95rem;
+}
+
+footer {
+  border-top: 1px solid var(--line);
+}

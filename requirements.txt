@@ -22,6 +22,9 @@ langchain-core==0.3.28
 # --- Векторный индекс ---
 chromadb>=0.5.20
 
+# --- Эмбеддинги (не ставятся в CI; включаются DENSE_SEARCH=true) ---
+# fastembed>=0.8
+
 # --- Отчёты ---
 reportlab>=4.2
 

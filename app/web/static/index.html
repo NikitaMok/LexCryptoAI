@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LexCryptoAI — предварительная проверка внешнеторгового контракта</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <p class="brand">LexCryptoAI</p>
+    <h1>Предварительная проверка внешнеторгового контракта</h1>
+    <p class="lead">
+      Соответствие Федеральному закону от 04.08.2026 № 282-ФЗ и связанным актам.
+      Заключение носит информационный характер и не является юридической консультацией.
+      Проверка кошелька, если она запрошена, не является цифровым анализом
+      в смысле статьи 35 № 282-ФЗ.
+    </p>
+  </header>
+
+  <main>
+    <form id="check-form">
+      <label>
+        Контракт (PDF или DOCX)
+        <input type="file" name="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
+      </label>
+      <label>
+        Дата, на которую проверяется применимость норм
+        <input type="date" name="on" value="2026-09-01" required>
+      </label>
+      <label class="check">
+        <input type="checkbox" name="quote_norms">
+        Привести дословный текст нормы под нарушением обязательного требования
+      </label>
+      <label class="check">
+        <input type="checkbox" name="aml">
+        Оценить извлечённые адреса по открытым данным блокчейна
+      </label>
+      <p class="hint">
+        Файл помещается во временный каталог и удаляется сразу после формирования
+        заключения. Содержимое договора в журнал не пишется.
+      </p>
+      <div class="actions">
+        <button type="submit">Проверить</button>
+        <button type="button" id="pdf-btn" disabled>Скачать PDF</button>
+      </div>
+    </form>
+
+    <p id="error" hidden></p>
+    <section id="result" hidden></section>
+
+    <section class="search-block">
+      <h2>Найти норму по формулировке</h2>
+      <form id="search-form">
+        <label>
+          Формулировка
+          <input type="text" name="q" maxlength="500" placeholder="репатриация цифровой валюты" required>
+        </label>
+        <button type="submit">Искать</button>
+      </form>
+      <div id="search-result"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      Часть 2 статьи 30 № 282-ФЗ: сервис не сообщает способов обойти требование
+      закона. Если конструкция недопустима, об этом говорится прямо.
+    </p>
+    <p>Никита Мокин</p>
+  </footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>
