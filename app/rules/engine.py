@@ -5,6 +5,7 @@ from datetime import date
 from enum import Enum
 
 from app.rules.contract import ContractView
+from app.rules.guardrail import CircumventionAttempt, verify_report
 from app.rules.predicates import Verdict, get_predicate
 from app.rules.registry import NormRef, Rule, RuleSet, Severity, get_rules
 
@@ -47,6 +48,9 @@ class Finding:
     clauses: tuple[str, ...] = ()
     norm_refs: tuple[NormRef, ...] = ()
     sanction: str = ""
+    # Формулировка-исправление берётся из матрицы правил и не генерируется:
+    # см. app/rules/guardrail.py и ч. 2 ст. 30 № 282-ФЗ.
+    recommendation: str = ""
 
     @property
     def is_violation(self) -> bool:
@@ -122,11 +126,14 @@ def _evaluate_rule(rule: Rule, contract: ContractView, moment: date) -> Finding:
         )
 
     outcome = predicate(contract)
+    status = _VERDICT_TO_STATUS[outcome.verdict]
+
     return Finding(
         **common,
-        status=_VERDICT_TO_STATUS[outcome.verdict],
+        status=status,
         evidence=outcome.evidence,
         clauses=outcome.clauses,
+        recommendation=rule.example_good or "" if status is FindingStatus.FAILED else "",
     )
 
 
@@ -152,8 +159,19 @@ def evaluate(
         _evaluate_rule(rule, contract, checked_on) for rule in ruleset.rules
     )
 
-    return Report(
+    report = Report(
         status=_overall_status(findings),
         findings=findings,
         checked_on=checked_on,
     )
+
+    # Заключение не покидает движок без проверки на советы обойти требование:
+    # ч. 2 ст. 30 № 282-ФЗ. Срабатывание означает ошибку в матрице правил,
+    # а не проблему проверяемого договора, поэтому падаем громко.
+    breaches = verify_report(report)
+    if breaches:
+        raise CircumventionAttempt(
+            "заключение не выдано: " + "; ".join(str(breach) for breach in breaches)
+        )
+
+    return report

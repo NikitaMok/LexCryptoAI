@@ -81,6 +81,9 @@ def _print_findings(
             _print_norm_texts(finding, norms)
         if finding.sanction:
             print(f"    последствие: {finding.sanction}")
+        if finding.recommendation:
+            print("    как исправить:")
+            print(_wrap(finding.recommendation))
         print()
 
 
