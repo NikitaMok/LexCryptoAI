@@ -99,7 +99,7 @@ def verify_report(report) -> list[GuardrailFinding]:  # noqa: ANN001 — изб�
     findings: list[GuardrailFinding] = []
 
     for finding in report.findings:
-        for field_name in ("title", "evidence", "sanction"):
+        for field_name in ("title", "evidence", "sanction", "recommendation"):
             findings.extend(
                 inspect(getattr(finding, field_name, "") or "", f"{finding.code}.{field_name}")
             )

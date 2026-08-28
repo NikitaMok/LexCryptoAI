@@ -2,6 +2,8 @@
 
     python -m scripts.check_contract путь/к/договору.docx
     python -m scripts.check_contract договор.pdf --on 2027-07-01
+    python -m scripts.check_contract --search "репатриация цифровой валюты"
+    python -m scripts.check_contract договор.docx --on 2026-09-01 --pdf заключение.pdf
 """
 
 from __future__ import annotations
@@ -13,15 +15,11 @@ from datetime import date
 from pathlib import Path
 
 from app.norms.index import NormIndex, get_norms
+from app.norms.search import get_search
 from app.parsing.document import EmptyDocumentError, UnsupportedFormatError
+from app.report.serialize import STATUS_LABEL
 from app.rules.contract import ContractView
 from app.rules.engine import ContractStatus, Finding, FindingStatus, Report, evaluate
-
-STATUS_LABEL = {
-    ContractStatus.GREEN: "ЗЕЛЁНЫЙ — обязательные требования выполнены",
-    ContractStatus.YELLOW: "ЖЁЛТЫЙ — есть замечания рекомендательного характера",
-    ContractStatus.RED: "КРАСНЫЙ — нарушены обязательные требования",
-}
 
 RULE = "-" * 78
 
@@ -87,6 +85,19 @@ def _print_findings(
         print()
 
 
+def print_search(query: str, limit: int = 8) -> None:
+    hits = get_search().search(query, limit=limit)
+    print(f"Запрос: {query}")
+    print(RULE)
+    if not hits:
+        print("Ничего не найдено.")
+        return
+    for hit in hits:
+        print(f"{hit.norm.reference}  ({hit.score:.2f})")
+        print(_wrap(hit.norm.text, indent="    "))
+        print()
+
+
 def print_report(report: Report, source: Path, quote_norms: bool = False) -> None:
     norms = get_norms() if quote_norms else None
 
@@ -119,7 +130,17 @@ def print_report(report: Report, source: Path, quote_norms: bool = False) -> Non
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Проверка внешнеторгового контракта")
-    parser.add_argument("path", type=Path, help="контракт в формате PDF или DOCX")
+    parser.add_argument(
+        "path",
+        nargs="?",
+        type=Path,
+        help="контракт в формате PDF или DOCX",
+    )
+    parser.add_argument(
+        "--search",
+        metavar="QUERY",
+        help="найти нормы по формулировке, без проверки договора",
+    )
     parser.add_argument(
         "--on",
         type=date.fromisoformat,
@@ -131,7 +152,22 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="приводить текст нормы под каждым нарушением обязательного требования",
     )
+    parser.add_argument(
+        "--pdf",
+        type=Path,
+        metavar="PATH",
+        help="сохранить заключение в PDF",
+    )
     args = parser.parse_args(argv)
+
+    if args.search is not None:
+        if args.path is not None or args.pdf is not None:
+            parser.error("укажите либо путь к контракту, либо --search")
+        print_search(args.search)
+        return 0
+
+    if args.path is None:
+        parser.error("укажите путь к контракту или --search")
 
     try:
         contract = ContractView.from_file(args.path)
@@ -141,6 +177,21 @@ def main(argv: list[str] | None = None) -> int:
 
     report = evaluate(contract, moment=args.on)
     print_report(report, args.path, quote_norms=args.quote_norms)
+
+    if args.pdf is not None:
+        from app.report.pdf import MissingCyrillicFontError, write_pdf
+
+        try:
+            write_pdf(
+                report,
+                args.pdf,
+                source_name=args.path.name,
+                quote_norms=args.quote_norms,
+            )
+        except (MissingCyrillicFontError, OSError) as error:
+            print(f"Ошибка: {error}", file=sys.stderr)
+            return 2
+        print(f"PDF: {args.pdf}")
 
     return 1 if report.status is ContractStatus.RED else 0
 

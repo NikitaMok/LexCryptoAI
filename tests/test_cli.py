@@ -67,3 +67,21 @@ class TestOutput:
         assert "НОРМЫ, ВСТУПАЮЩИЕ В СИЛУ ПОЗДНЕЕ" in output
         assert "ТРЕБУЕТ ОЦЕНКИ ЮРИСТА" in output
         assert "Итого правил: 32" in output
+
+
+class TestSearch:
+    def test_finds_norm_by_wording(self, capsys):
+        code = main(["--search", "внешнеторговый договор резидент нерезидент"])
+        output = capsys.readouterr().out
+
+        assert code == 0
+        assert "282-ФЗ" in output
+        assert "ст. 1" in output
+        assert "внешнеторгов" in output.lower()
+
+    def test_empty_result_is_stated(self, capsys):
+        code = main(["--search", "xyzzy-несуществующая-формулировка-qwerty"])
+        output = capsys.readouterr().out
+
+        assert code == 0
+        assert "Ничего не найдено" in output

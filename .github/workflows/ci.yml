@@ -18,6 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Install fonts
+        run: sudo apt-get update && sudo apt-get install -y fonts-dejavu-core
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v7
         with:
@@ -32,11 +35,12 @@ jobs:
           # запись фикстур вынесена в scripts/make_test_fixtures.py и в CI не выполняется
           pip install fastapi==0.115.6 pydantic==2.10.4 pydantic-settings==2.7.0 \
             httpx==0.28.1 loguru==0.7.3 python-dotenv==1.0.1 PyYAML==6.0.2 \
-            pdfplumber==0.11.4 python-docx==1.2.0
+            pdfplumber==0.11.4 python-docx==1.2.0 python-multipart==0.0.20 \
+            reportlab==5.0.1
           pip install -r requirements-dev.txt
 
       - name: Ruff check
-        run: ruff check app tests --select E,F --ignore E501
+        run: ruff check app tests scripts --select E,F --ignore E501
 
       - name: Pytest
         env:
