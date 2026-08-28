@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import argparse
 import sys
+import textwrap
 from datetime import date
 from pathlib import Path
 
+from app.norms.index import NormIndex, get_norms
 from app.parsing.document import EmptyDocumentError, UnsupportedFormatError
 from app.rules.contract import ContractView
 from app.rules.engine import ContractStatus, Finding, FindingStatus, Report, evaluate
@@ -33,7 +35,36 @@ def _format_norms(finding: Finding) -> str:
     return "; ".join(str(ref) for ref in finding.norm_refs) or "—"
 
 
-def _print_findings(title: str, findings: list[Finding]) -> None:
+def _wrap(text: str, indent: str = " " * 8, width: int = 70) -> str:
+    return textwrap.fill(
+        " ".join(text.split()),
+        width=width,
+        initial_indent=indent,
+        subsequent_indent=indent,
+    )
+
+
+def _print_norm_texts(finding: Finding, norms: NormIndex) -> None:
+    for ref in finding.norm_refs:
+        resolved = norms.resolve_ref(ref.act, ref.ref)
+        if not resolved:
+            print(f"    {ref}: текста нормы в корпусе нет")
+            continue
+
+        with_text = [norm for norm in resolved if norm.has_text]
+        if not with_text:
+            note = next((norm.note for norm in resolved if norm.note), "")
+            print(f"    {ref}: текст не выверен. {note.strip()}")
+            continue
+
+        print(f"    {ref}:")
+        for norm in with_text[:2]:
+            print(_wrap(norm.text))
+
+
+def _print_findings(
+    title: str, findings: list[Finding], norms: NormIndex | None = None
+) -> None:
     if not findings:
         return
 
@@ -44,18 +75,25 @@ def _print_findings(title: str, findings: list[Finding]) -> None:
             print(f"    {finding.evidence}")
         if finding.clauses:
             print(f"    пункты договора: {', '.join(finding.clauses)}")
-        print(f"    норма: {_format_norms(finding)}")
+        if norms is None:
+            print(f"    норма: {_format_norms(finding)}")
+        else:
+            _print_norm_texts(finding, norms)
         if finding.sanction:
             print(f"    последствие: {finding.sanction}")
         print()
 
 
-def print_report(report: Report, source: Path) -> None:
+def print_report(report: Report, source: Path, quote_norms: bool = False) -> None:
+    norms = get_norms() if quote_norms else None
+
     print(f"\nДокумент: {source.name}")
     print(f"Проверено на дату: {report.checked_on.isoformat()}")
     print(f"Статус: {STATUS_LABEL[report.status]}")
 
-    _print_findings("НАРУШЕНЫ ОБЯЗАТЕЛЬНЫЕ ТРЕБОВАНИЯ", report.blocking_violations())
+    _print_findings(
+        "НАРУШЕНЫ ОБЯЗАТЕЛЬНЫЕ ТРЕБОВАНИЯ", report.blocking_violations(), norms
+    )
     _print_findings("ЗАМЕЧАНИЯ", report.advisory_violations())
 
     deferred = [f for f in report.findings if f.status is FindingStatus.DEFERRED]
@@ -85,6 +123,11 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="дата, на которую проверяется применимость норм (по умолчанию сегодня)",
     )
+    parser.add_argument(
+        "--quote-norms",
+        action="store_true",
+        help="приводить текст нормы под каждым нарушением обязательного требования",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -94,7 +137,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     report = evaluate(contract, moment=args.on)
-    print_report(report, args.path)
+    print_report(report, args.path, quote_norms=args.quote_norms)
 
     return 1 if report.status is ContractStatus.RED else 0
 
