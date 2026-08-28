@@ -97,11 +97,11 @@ flowchart TD
         N6 --> N7[format_output]
     end
 
-    N3 --> RulesDB[(PostgreSQL: матрица правил)]
+    N3 --> Rules[Матрица правил: config/rules.yaml]
     N3 --> VectorDB[(Chroma: эмбеддинги норм)]
     N4 --> RPC[TronGrid / Etherscan]
     N5 --> Report[PDF-заключение]
-    N6 --> Feedback[(Обратная связь)]
+    N6 --> Feedback[(PostgreSQL: обратная связь, история)]
 ```
 
 Всё разворачивается на одном VPS через Docker Compose: без облачных баз данных,
