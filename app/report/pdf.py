@@ -89,6 +89,14 @@ WALLET_NOT_ANALYSIS = (
     "в смысле статьи 35 Федерального закона от 04.08.2026 № 282-ФЗ."
 )
 PARTY_EMPTY = "сверка не выполнена: в прогоне нет данных о сторонах"
+LLM_SILENT = (
+    "Локальная модель не ответила. Вердикт поставлен по матрице правил; "
+    "смысл нестандартных оговорок модель не разбирала."
+)
+LLM_USED = (
+    "Локальная модель разобрала оговорки, которые не ловятся регулярками. "
+    "Вердикт поставлен матрицей правил."
+)
 
 
 class MissingCyrillicFontError(RuntimeError):
@@ -255,6 +263,21 @@ def _finding_blocks(
     return blocks
 
 
+def _llm_status_line(llm) -> str:
+    if llm is None:
+        return ""
+    payload = llm.to_dict() if hasattr(llm, "to_dict") else llm
+    if payload.get("available"):
+        model = str(payload.get("model") or "").strip()
+        line = LLM_USED if not model else f"{LLM_USED} Модель: {model}."
+        assert_clean(line)
+        return line
+    detail = str(payload.get("detail") or "").strip()
+    line = detail or LLM_SILENT
+    assert_clean(line)
+    return line
+
+
 def render_pdf(
     report: Report,
     *,
@@ -278,6 +301,8 @@ def render_pdf(
         WALLET_EMPTY,
         WALLET_NOT_ANALYSIS,
         PARTY_EMPTY,
+        LLM_SILENT,
+        LLM_USED,
     ):
         assert_clean(fragment)
 
@@ -313,6 +338,9 @@ def render_pdf(
         ),
         Paragraph(_xml(DISCLAIMER), styles["disclaimer"]),
     ]
+    llm_line = _llm_status_line(llm)
+    if llm_line:
+        story.append(Paragraph(_xml(llm_line), styles["meta"]))
 
     story.append(Paragraph(_xml(SECTION_CONTRACT), styles["heading"]))
 

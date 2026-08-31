@@ -13,7 +13,6 @@ RUN pip install --no-cache-dir \
       pydantic-settings==2.7.0 \
       python-multipart==0.0.20 \
       httpx==0.28.1 \
-      loguru==0.7.3 \
       python-dotenv==1.0.1 \
       PyYAML==6.0.2 \
       pdfplumber==0.11.4 \

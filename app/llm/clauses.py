@@ -16,8 +16,9 @@ from app.llm.client import LlmReply, complete
 from app.rules.contract import ContractView
 from app.rules.guardrail import CircumventionAttempt, assert_clean, inspect
 
-# Правила без предиката: модели есть что сказать, вердикт всё равно у юриста.
-_MANUAL_TOPICS = (
+# Оговорки с нестандартной формулировкой. Вердикт ставит предикат матрицы;
+# модель только выписывает факт, если цитата есть в тексте договора.
+_CLAUSE_TOPICS = (
     ("FTC-004", "агент, комиссионер, поверенный"),
     ("AST-003", "утрата привязки стейблкоина, делистинг"),
     ("AST-004", "иностранный цифровой инструмент"),
@@ -84,7 +85,7 @@ def _unavailable(detail: str, model: str = "") -> ClauseAnalysis:
 
 
 def _prompt(text: str) -> str:
-    topics = "\n".join(f"- {code}: {title}" for code, title in _MANUAL_TOPICS)
+    topics = "\n".join(f"- {code}: {title}" for code, title in _CLAUSE_TOPICS)
     body = text if len(text) <= _MAX_CHARS else text[:_MAX_CHARS]
     return (
         "Ниже текст внешнеторгового договора. Выпиши только то, что в нём есть.\n"
@@ -148,7 +149,7 @@ def _parse_parties(raw: object, contract: str) -> tuple[PartyNote, ...]:
 
 
 def _parse_notes(raw: object, contract: str) -> tuple[ClauseNote, ...]:
-    allowed = {code for code, _title in _MANUAL_TOPICS}
+    allowed = {code for code, _title in _CLAUSE_TOPICS}
     if not isinstance(raw, list):
         return ()
     notes: list[ClauseNote] = []

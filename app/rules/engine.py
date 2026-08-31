@@ -9,6 +9,18 @@ from app.rules.guardrail import CircumventionAttempt, verify_report
 from app.rules.predicates import Verdict, get_predicate
 from app.rules.registry import NormRef, Rule, RuleSet, Severity, get_rules
 
+# Основной массив № 282-ФЗ / № 283-ФЗ. Если дату не передали, а сегодня ещё
+# раньше — проверяем на день вступления, иначе все правила «с 01.09.2026»
+# уйдут в «вступает позднее» и зелёный статус будет ложным.
+LAW_IN_FORCE = date(2026, 9, 1)
+
+
+def default_check_date(moment: date | None = None, *, today: date | None = None) -> date:
+    if moment is not None:
+        return moment
+    now = today or date.today()
+    return LAW_IN_FORCE if now < LAW_IN_FORCE else now
+
 
 class UnknownPredicateError(LookupError):
     pass
@@ -154,7 +166,7 @@ def evaluate(
     moment: date | None = None,
 ) -> Report:
     ruleset = rules or get_rules()
-    checked_on = moment or date.today()
+    checked_on = default_check_date(moment)
 
     findings = tuple(
         _evaluate_rule(rule, contract, checked_on) for rule in ruleset.rules

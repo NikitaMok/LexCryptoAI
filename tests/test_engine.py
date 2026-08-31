@@ -214,3 +214,32 @@ def test_report_separates_severity_levels(violating, rules):
     assert len(report.violations()) == len(report.blocking_violations()) + len(
         report.advisory_violations()
     )
+
+
+class TestDefaultCheckDate:
+    def test_explicit_date_is_kept(self):
+        from app.rules.engine import default_check_date
+
+        assert default_check_date(date(2026, 8, 31), today=date(2026, 8, 31)) == date(
+            2026, 8, 31
+        )
+
+    def test_before_law_defaults_to_first_of_september(self):
+        from app.rules.engine import default_check_date
+
+        assert default_check_date(today=date(2026, 8, 31)) == LAW_IN_FORCE
+
+    def test_on_and_after_law_defaults_to_today(self):
+        from app.rules.engine import default_check_date
+
+        assert default_check_date(today=date(2026, 9, 1)) == date(2026, 9, 1)
+        assert default_check_date(today=date(2026, 9, 2)) == date(2026, 9, 2)
+
+
+def test_depositary_pass_does_not_claim_registry_hit(compliant, rules):
+    report = evaluate(compliant, rules, moment=LAW_IN_FORCE)
+    finding = report.by_code("ADR-002")
+
+    assert finding.status is FindingStatus.PASSED
+    assert "не выполнялась" in finding.evidence
+    assert "890-П" in finding.evidence

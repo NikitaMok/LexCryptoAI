@@ -32,8 +32,6 @@ class Settings(BaseSettings):
     spark_api_key: str = ""
     sbis_api_key: str = ""
 
-    database_url: str = "postgresql+psycopg://lexcrypto:@localhost:5432/lexcrypto"
-
     chroma_persist_dir: Path = PROJECT_ROOT / "data" / "chroma"
     chroma_collection: str = "legal_norms"
     embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
@@ -42,13 +40,9 @@ class Settings(BaseSettings):
     aml_risk_threshold: int = 50
     trongrid_api_key: str = ""
     etherscan_api_key: str = ""
-    hitl_confidence_threshold: float = 0.8
 
     upload_tmp_dir: Path = PROJECT_ROOT / "tmp" / "uploads"
     max_upload_mb: int = 20
-
-    sentry_dsn: str = ""
-    metrics_enabled: bool = True
 
 
 @lru_cache

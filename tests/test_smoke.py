@@ -20,4 +20,5 @@ def test_settings_defaults_are_loadable():
     settings = get_settings()
 
     assert settings.aml_risk_threshold > 0
-    assert 0 < settings.hitl_confidence_threshold <= 1
+    assert settings.ollama_timeout_s >= 60
+    assert settings.ollama_model

@@ -216,7 +216,8 @@ def main(argv: list[str] | None = None) -> int:
         "--on",
         type=date.fromisoformat,
         default=None,
-        help="дата, на которую проверяется применимость норм (по умолчанию сегодня)",
+        help="дата, на которую проверяется применимость норм "
+        "(если не указана и сегодня раньше 01.09.2026 — проверяется на 01.09.2026)",
     )
     parser.add_argument(
         "--quote-norms",

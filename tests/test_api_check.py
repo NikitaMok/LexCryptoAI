@@ -18,7 +18,7 @@ def _post_check(client: TestClient, path: Path, params: dict | None = None, url:
     return client.post(
         url,
         files={"file": (path.name, path.read_bytes(), DOCX_TYPE)},
-        params=params or {"on": "2026-09-01"},
+        params={"on": "2026-09-01"} if params is None else params,
     )
 
 
@@ -36,6 +36,20 @@ class TestCheckEndpoint:
         assert payload["llm"] is not None
         assert payload["counterparties"]
         assert "text" not in payload
+
+    def test_omitted_on_does_not_check_before_the_law(
+        self, compliant_docx: Path, tmp_path, monkeypatch
+    ):
+        response = _post_check(
+            _client(tmp_path, monkeypatch),
+            compliant_docx,
+            params={},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["checked_on"] >= "2026-09-01"
+        assert payload["status"] == "green"
 
     def test_violating_contract_is_red(self, violating_docx: Path, tmp_path, monkeypatch):
         response = _post_check(_client(tmp_path, monkeypatch), violating_docx)
@@ -145,3 +159,15 @@ class TestPdfEndpoint:
         assert response.headers["content-type"].startswith("application/pdf")
         assert response.content.startswith(b"%PDF")
         assert len(response.content) > 1000
+
+    def test_pdf_after_json_uses_same_file(
+        self, violating_docx: Path, tmp_path, monkeypatch, cyrillic_font
+    ):
+        client = _client(tmp_path, monkeypatch)
+        json_response = _post_check(client, violating_docx)
+        pdf_response = _post_check(client, violating_docx, url="/check/pdf")
+
+        assert json_response.status_code == 200
+        assert json_response.json()["status"] == "red"
+        assert pdf_response.status_code == 200
+        assert pdf_response.content.startswith(b"%PDF")

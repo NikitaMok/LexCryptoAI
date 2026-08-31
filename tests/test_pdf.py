@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pdfplumber
 
-from app.report.pdf import DISCLAIMER, FOOTER, TITLE, WALLET_NOT_ANALYSIS, render_pdf, write_pdf
+from app.report.pdf import DISCLAIMER, FOOTER, LLM_SILENT, TITLE, WALLET_NOT_ANALYSIS, render_pdf, write_pdf
 from app.rules.contract import ContractView
 from app.rules.engine import evaluate
 from app.rules.guardrail import inspect
@@ -20,7 +20,7 @@ def _text(data: bytes) -> str:
 
 class TestPdfContent:
     def test_static_wording_is_clean(self):
-        for fragment in (TITLE, DISCLAIMER, FOOTER, WALLET_NOT_ANALYSIS):
+        for fragment in (TITLE, DISCLAIMER, FOOTER, WALLET_NOT_ANALYSIS, LLM_SILENT):
             assert inspect(fragment) == []
 
     def test_violating_contract_pdf_names_blocking_rules(
@@ -56,3 +56,16 @@ class TestPdfContent:
         write_pdf(report, path, source_name="договор.docx")
 
         assert path.stat().st_size > 1000
+
+    def test_pdf_says_when_model_was_silent(self, violating_docx: Path, cyrillic_font):
+        from app.llm.clauses import ClauseAnalysis
+
+        report = evaluate(ContractView.from_file(violating_docx), moment=LAW_IN_FORCE)
+        silent = ClauseAnalysis(
+            available=False,
+            model="",
+            detail="локальная модель не ответила",
+        )
+        text = _text(render_pdf(report, source_name=violating_docx.name, llm=silent))
+
+        assert "не ответила" in text

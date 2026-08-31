@@ -13,6 +13,7 @@ const resultBox = document.getElementById("result");
 const searchForm = document.getElementById("search-form");
 const searchResult = document.getElementById("search-result");
 const busy = document.getElementById("busy");
+const machine = document.getElementById("machine");
 
 let lastFile = null;
 
@@ -87,7 +88,8 @@ function llmHtml(llm) {
     return `<article class="finding"><p>[${esc(note.code)}] ${esc(mark)}</p>${quote}${reading}</article>`;
   }).join("");
   const model = llm.model ? `<p>модель: ${esc(llm.model)}</p>` : "";
-  return `<h2>Оговорки, которые формальная проверка не ловит</h2><p>${esc(llm.detail || "")}</p>${model}${notes}`;
+  const extra = notes ? `<h2>Оговорки, которые формальная проверка не ловит</h2>${notes}` : "";
+  return `<p>${esc(llm.detail || "")}</p>${model}${extra}`;
 }
 
 function renderReport(payload) {
@@ -97,12 +99,12 @@ function renderReport(payload) {
     <p>Документ: ${esc(payload.source)}. Проверено на дату: ${esc(payload.checked_on)}.</p>
     <p>Итого правил: ${payload.counts.total}. Выполнено: ${payload.counts.passed}.
        Нарушено: ${payload.counts.failed}. На ручной оценке: ${payload.counts.manual}.</p>
+    ${llmHtml(payload.llm)}
     <h2>1. Договор</h2>
     ${findingsHtml("Нарушены обязательные требования", payload.blocking)}
     ${findingsHtml("Замечания", payload.advisory)}
     ${findingsHtml("Нормы, вступающие в силу позднее", payload.deferred)}
     ${findingsHtml("Требует оценки юриста", payload.manual)}
-    ${llmHtml(payload.llm)}
     ${walletHtml(payload.address_scores)}
     ${partyHtml(payload.counterparties)}
   `;
@@ -195,3 +197,15 @@ searchForm.addEventListener("submit", async (event) => {
     searchResult.textContent = "нет связи с сервером";
   }
 });
+
+fetch("/health")
+  .then((response) => response.json())
+  .then((payload) => {
+    if (!machine) return;
+    if (payload.ollama === "off") {
+      machine.hidden = false;
+      machine.textContent =
+        "Локальная Ollama сейчас не отвечает. Договор проверяется по матрице правил; смысл нестандартных оговорок модель не разбирает. Кошелёк и контрагент запрашиваются как обычно.";
+    }
+  })
+  .catch(() => {});

@@ -1,5 +1,7 @@
 from datetime import date
+from hashlib import sha256
 from pathlib import Path
+from threading import Lock
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response
@@ -14,6 +16,7 @@ from app.pipeline import CheckResult, run_check
 from app.report.pdf import MissingCyrillicFontError, render_pdf
 from app.report.serialize import serialize_report
 from app.rules.contract import ContractView
+from app.rules.engine import default_check_date
 from app.rules.guardrail import CircumventionAttempt
 
 STATIC_DIR = PROJECT_ROOT / "app" / "web" / "static"
@@ -30,6 +33,16 @@ app = FastAPI(
 
 if STATIC_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# Один юрист, один процесс: повторный запрос PDF по тому же файлу не гоняет
+# Ollama и реестры второй раз.
+_RESULT_LOCK = Lock()
+_LAST_RESULT: tuple[str, CheckResult] | None = None
+
+
+def _result_key(content: bytes, moment: date | None) -> str:
+    checked = default_check_date(moment).isoformat()
+    return sha256(content + b"|" + checked.encode()).hexdigest()
 
 
 @app.get("/health")
@@ -61,9 +74,15 @@ async def index() -> FileResponse:
 
 
 def _check_upload(content: bytes, filename: str | None, moment: date | None) -> CheckResult:
+    global _LAST_RESULT
     settings = get_settings()
     suffix = validate_upload(filename, content, settings.max_upload_mb * 1024 * 1024)
     source_name = Path(filename or f"document{suffix}").name
+    key = _result_key(content, moment)
+    with _RESULT_LOCK:
+        cached = _LAST_RESULT
+    if cached is not None and cached[0] == key:
+        return cached[1]
     with stored_upload(content, suffix, root=settings.upload_tmp_dir) as path:
         try:
             contract = ContractView.from_file(path)
@@ -72,12 +91,19 @@ def _check_upload(content: bytes, filename: str | None, moment: date | None) -> 
         except EmptyDocumentError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         try:
-            return run_check(contract, source_name=source_name, moment=moment)
+            result = run_check(
+                contract,
+                source_name=source_name,
+                moment=default_check_date(moment),
+            )
         except CircumventionAttempt as error:
             raise HTTPException(
                 status_code=500,
                 detail="заключение не сформировано",
             ) from error
+    with _RESULT_LOCK:
+        _LAST_RESULT = (key, result)
+    return result
 
 
 def _payload(result: CheckResult, quote_norms: bool) -> dict:

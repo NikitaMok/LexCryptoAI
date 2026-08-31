@@ -103,6 +103,12 @@ button[type="button"] {
   color: var(--red);
 }
 
+#machine {
+  color: var(--yellow);
+  margin: 0;
+  font-size: 0.95rem;
+}
+
 #busy {
   color: var(--muted);
   margin: 0;
