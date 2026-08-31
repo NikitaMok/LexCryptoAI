@@ -24,6 +24,8 @@ _CITATION = re.compile(
     r"(?:\s+п\.?\s*(?P<point>[\d.\-]+))?"
     r"(?:\s+подп\.?\s*(?P<subpoint>[\d.а-я\-]+))?$"
 )
+# Инструкции Банка России нумеруются пунктами, не статьями.
+_INSTRUCTION_POINT = re.compile(r"^п\.?\s*(?P<article>[\d.\-()]+)$")
 
 
 def _expand_range(value: str | None) -> list[str | None]:
@@ -39,6 +41,12 @@ def _expand_range(value: str | None) -> list[str | None]:
     return [value]
 
 
+def _unit_label(act: str, *, as_point: bool = False) -> str:
+    if as_point or act.endswith("-И"):
+        return "п."
+    return "ст."
+
+
 @dataclass(frozen=True)
 class Citation:
     act: str
@@ -46,10 +54,16 @@ class Citation:
     part: str | None = None
     point: str | None = None
     subpoint: str | None = None
+    as_point: bool = False
 
     @classmethod
     def parse(cls, act: str, ref: str) -> Citation | None:
-        match = _CITATION.match(ref.strip())
+        text = ref.strip()
+        instruction = _INSTRUCTION_POINT.match(text)
+        if instruction:
+            return cls(act=act, article=instruction.group("article"), as_point=True)
+
+        match = _CITATION.match(text)
         if not match:
             return None
 
@@ -62,6 +76,7 @@ class Citation:
         )
 
     def __str__(self) -> str:
+        head = _unit_label(self.act, as_point=self.as_point)
         tail = "".join(
             filter(
                 None,
@@ -72,7 +87,7 @@ class Citation:
                 ),
             )
         )
-        return f"{self.act}, ст. {self.article}{tail}"
+        return f"{self.act}, {head} {self.article}{tail}"
 
 
 @dataclass(frozen=True)
@@ -93,6 +108,7 @@ class Norm:
 
     @property
     def reference(self) -> str:
+        head = _unit_label(self.act)
         tail = "".join(
             filter(
                 None,
@@ -103,7 +119,7 @@ class Norm:
                 ),
             )
         )
-        return f"{self.act}, ст. {self.article}{tail}"
+        return f"{self.act}, {head} {self.article}{tail}"
 
 
 class NormIndex:

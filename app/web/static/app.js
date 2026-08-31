@@ -1,3 +1,11 @@
+function esc(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 const form = document.getElementById("check-form");
 const pdfBtn = document.getElementById("pdf-btn");
 const errorBox = document.getElementById("error");
@@ -30,14 +38,14 @@ function findingsHtml(title, items) {
   if (!items || !items.length) return "";
   const blocks = items.map((item) => {
     const clauses = item.clauses && item.clauses.length
-      ? `<p>пункты договора: ${item.clauses.join(", ")}</p>`
+      ? `<p>пункты договора: ${esc(item.clauses.join(", "))}</p>`
       : "";
     const norms = item.norms && item.norms.length
-      ? `<p>норма: ${item.norms.join("; ")}</p>`
+      ? `<p>норма: ${esc(item.norms.join("; "))}</p>`
       : "";
-    const evidence = item.evidence ? `<p>${item.evidence}</p>` : "";
-    const rec = item.recommendation ? `<p>как исправить: ${item.recommendation}</p>` : "";
-    return `<article class="finding"><p><strong>[${item.code}]</strong> ${item.title}</p>${evidence}${clauses}${norms}${rec}</article>`;
+    const evidence = item.evidence ? `<p>${esc(item.evidence)}</p>` : "";
+    const rec = item.recommendation ? `<p>редакция: ${esc(item.recommendation)}</p>` : "";
+    return `<article class="finding"><p><strong>[${esc(item.code)}]</strong> ${esc(item.title)}</p>${evidence}${clauses}${norms}${rec}</article>`;
   });
   return `<h2>${title}</h2>${blocks.join("")}`;
 }
@@ -47,12 +55,12 @@ function walletHtml(scores) {
     return `<h2>2. Кошелёк</h2><p>В тексте нет адреса. Оценка по открытым данным не выполнялась.</p>`;
   }
   const blocks = scores.map((item) => {
-    const factors = (item.factors || []).map((factor) => `<p>${factor}</p>`).join("");
-    const labels = (item.labels || []).map((label) => `<p>метка: ${label}</p>`).join("");
-    const notes = (item.source_notes || []).map((note) => `<p>${note}</p>`).join("");
-    const err = item.error ? `<p>${item.error}</p>` : "";
-    const score = item.score != null ? `, оценка ${item.score}` : "";
-    return `<article class="finding"><p>${item.address} (${item.network}): ${item.band}${score}</p>${factors}${labels}${notes}${err}<p>${item.disclaimer || ""}</p></article>`;
+    const factors = (item.factors || []).map((factor) => `<p>${esc(factor)}</p>`).join("");
+    const labels = (item.labels || []).map((label) => `<p>метка: ${esc(label)}</p>`).join("");
+    const notes = (item.source_notes || []).map((note) => `<p>${esc(note)}</p>`).join("");
+    const err = item.error ? `<p>${esc(item.error)}</p>` : "";
+    const score = item.score != null ? `, оценка ${esc(item.score)}` : "";
+    return `<article class="finding"><p>${esc(item.address)} (${esc(item.network)}): ${esc(item.band)}${score}</p>${factors}${labels}${notes}${err}<p>${esc(item.disclaimer || "")}</p></article>`;
   }).join("");
   return `<h2>2. Кошелёк</h2>${blocks}`;
 }
@@ -62,10 +70,10 @@ function partyHtml(parties) {
     return `<h2>3. Контрагент</h2><p>сверка не выполнена</p>`;
   }
   const blocks = parties.map((item) => {
-    const who = item.name || item.inn || "сторона не названа";
-    const inn = item.inn ? `<p>ИНН ${item.inn}</p>` : "";
-    const hits = (item.hits || []).map((hit) => `<p>${hit.detail || hit.source}</p>`).join("");
-    return `<article class="finding"><p>${who}</p>${inn}<p>${item.summary || ""}</p>${hits}</article>`;
+    const who = esc(item.name || item.inn || "сторона не названа");
+    const inn = item.inn ? `<p>ИНН ${esc(item.inn)}</p>` : "";
+    const hits = (item.hits || []).map((hit) => `<p>${esc(hit.detail || hit.source)}</p>`).join("");
+    return `<article class="finding"><p>${who}</p>${inn}<p>${esc(item.summary || "")}</p>${hits}</article>`;
   }).join("");
   return `<h2>3. Контрагент</h2>${blocks}`;
 }
@@ -74,19 +82,19 @@ function llmHtml(llm) {
   if (!llm) return "";
   const notes = (llm.notes || []).map((note) => {
     const mark = note.present === true ? "есть в тексте" : note.present === false ? "в тексте не видно" : "не ясно";
-    const quote = note.quote ? `<p>цитата: ${note.quote}</p>` : "";
-    const reading = note.reading ? `<p>${note.reading}</p>` : "";
-    return `<article class="finding"><p>[${note.code}] ${mark}</p>${quote}${reading}</article>`;
+    const quote = note.quote ? `<p>цитата: ${esc(note.quote)}</p>` : "";
+    const reading = note.reading ? `<p>${esc(note.reading)}</p>` : "";
+    return `<article class="finding"><p>[${esc(note.code)}] ${esc(mark)}</p>${quote}${reading}</article>`;
   }).join("");
-  const model = llm.model ? `<p>модель: ${llm.model}</p>` : "";
-  return `<h2>Смысл оговорок (локальная модель, не вердикт)</h2><p>${llm.detail || ""}</p>${model}${notes}`;
+  const model = llm.model ? `<p>модель: ${esc(llm.model)}</p>` : "";
+  return `<h2>Оговорки, которые формальная проверка не ловит</h2><p>${esc(llm.detail || "")}</p>${model}${notes}`;
 }
 
 function renderReport(payload) {
   resultBox.hidden = false;
   resultBox.innerHTML = `
-    <p class="status ${payload.status}">${payload.status_label}</p>
-    <p>Документ: ${payload.source}. Проверено на дату: ${payload.checked_on}.</p>
+    <p class="status ${esc(payload.status)}">${esc(payload.status_label)}</p>
+    <p>Документ: ${esc(payload.source)}. Проверено на дату: ${esc(payload.checked_on)}.</p>
     <p>Итого правил: ${payload.counts.total}. Выполнено: ${payload.counts.passed}.
        Нарушено: ${payload.counts.failed}. На ручной оценке: ${payload.counts.manual}.</p>
     <h2>1. Договор</h2>
@@ -181,7 +189,7 @@ searchForm.addEventListener("submit", async (event) => {
       return;
     }
     searchResult.innerHTML = payload.hits.map(
-      (hit) => `<article class="search-hit"><p>${hit.ref}</p><p>${hit.text}</p></article>`
+      (hit) => `<article class="search-hit"><p>${esc(hit.ref)}</p><p>${esc(hit.text)}</p></article>`
     ).join("");
   } catch (error) {
     searchResult.textContent = "нет связи с сервером";

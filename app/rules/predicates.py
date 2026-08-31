@@ -163,6 +163,23 @@ def cites_exemption(contract: ContractView) -> Outcome:
     return _failed("нет прямой ссылки на норму, разрешающую расчёты цифровой валютой")
 
 
+@register("intermediary_capacity")
+def intermediary_capacity(contract: ContractView) -> Outcome:
+    if not contract.has_any(r"агент", r"комиссионер", r"поверенн"):
+        return _skip("сторона не названа агентом, комиссионером или поверенным")
+
+    if contract.has_any(r"в\s+интересах", r"по\s+договору"):
+        return _passed(
+            "указано, в чьих интересах действует посредник",
+            _clause_numbers(contract, r"агент|комиссионер|поверенн"),
+        )
+
+    return _failed(
+        "сторона названа посредником, но не указано, в чьих интересах "
+        "и по какому договору"
+    )
+
+
 # --- B. Актив ---
 
 
@@ -201,6 +218,40 @@ def payment_purpose_declared(contract: ContractView) -> Outcome:
     )
 
 
+@register("depeg_and_delisting")
+def depeg_and_delisting(contract: ContractView) -> Outcome:
+    has_peg = contract.has_any(r"привязк", r"депег")
+    has_event = contract.has_any(r"утрат", r"делистинг", r"исключ")
+    if has_peg and has_event:
+        return _passed("оговорены последствия утраты привязки и делистинга")
+
+    return _failed(
+        "не оговорены последствия утраты стейблкоином привязки к базовому активу "
+        "и делистинга"
+    )
+
+
+@register("foreign_digital_instrument")
+def foreign_digital_instrument(contract: ContractView) -> Outcome:
+    named = contract.has_any(r"USDT", r"USDC", r"Tether", r"иностранн\w+\s+цифров")
+    if not named:
+        return _skip("иностранный цифровой инструмент в договоре не назван")
+
+    if contract.has_any(
+        r"иностранн\w+\s+цифров\w+\s+инструмент",
+        r"применяются\s+положения,?\s+установленные\s+в\s+отношении\s+цифровых\s+валют",
+    ):
+        return _passed(
+            "учтено, что к иностранному цифровому инструменту применяются "
+            "правила о цифровых валютах"
+        )
+
+    return _failed(
+        "актив является иностранным цифровым инструментом, но это в договоре "
+        "не учтено"
+    )
+
+
 # --- C. Адреса и порядок расчётов ---
 
 
@@ -235,7 +286,11 @@ def depositary_registry_reference(contract: ContractView) -> Outcome:
         )
 
     return _passed(
-        "депозитарий назван с реестровыми данными",
+        "депозитарий назван с реестровыми данными. Публичный перечень цифровых "
+        "депозитариев Банка России на дату проверки не опубликован "
+        "(навигатор допуска — cbr.ru/admissionfinmarket/navigator/cd, "
+        "обновление 28.08.2026; акты о ведении реестра на регистрации в Минюсте). "
+        "Сверка записи в реестре не выполнялась",
         _clause_numbers(contract, r"депозитари", r"реестр"),
     )
 
@@ -246,6 +301,25 @@ def depositary_statement_right(contract: ContractView) -> Outcome:
         return _passed("предусмотрена выписка цифрового депозитария")
 
     return _failed("нет права требовать выписку цифрового депозитария")
+
+
+@register("noncustodial_tax_reporting")
+def noncustodial_tax_reporting(contract: ContractView) -> Outcome:
+    if not contract.has_any(r"не\s+администриру\w*.{0,80}депозитари"):
+        if contract.facts.mentions_depositary:
+            return _skip(
+                "расчёты через цифровой депозитарий: отчётность по статье 12.1 "
+                "к этому адресу не привязана"
+            )
+        return _skip("недепозитарный адрес-идентификатор в договоре не назван")
+
+    if contract.has_any(r"налогов", r"отч[её]т"):
+        return _passed("оговорена отчётность в налоговые органы по недепозитарному адресу")
+
+    return _failed(
+        "используется адрес, не администрируемый депозитарием, без оговорки "
+        "об отчётности в налоговые органы"
+    )
 
 
 # --- D. Курс и момент исполнения ---
@@ -293,6 +367,19 @@ def network_fees_allocated(contract: ContractView) -> Outcome:
     return _failed("не распределены расходы на комиссии информационной системы")
 
 
+@register("rate_deviation_limit")
+def rate_deviation_limit(contract: ContractView) -> Outcome:
+    if contract.has_all(r"отклонен", r"курс") and contract.has_any(
+        r"доплат", r"возврат", r"разниц"
+    ):
+        return _passed("установлен предел отклонения курса и порядок доплаты либо возврата")
+
+    return _failed(
+        "не установлен допустимый предел отклонения курса и порядок доплаты "
+        "либо возврата разницы"
+    )
+
+
 # --- E. Реквизиты сторон ---
 
 
@@ -326,6 +413,17 @@ def party_details_above_travel_rule_threshold(contract: ContractView) -> Outcome
     return party_details_present(contract)
 
 
+@register("details_update_obligation")
+def details_update_obligation(contract: ContractView) -> Outcome:
+    if contract.has_all(r"актуализ", r"реквизит"):
+        return _passed("обязанность актуализировать реквизиты закреплена")
+
+    return _failed(
+        "нет обязанности актуализировать реквизиты и последствий "
+        "непредоставления сведений"
+    )
+
+
 # --- F. Пороги и контроль ---
 
 
@@ -356,15 +454,53 @@ def bank_registration_clause(contract: ContractView) -> Outcome:
     if amount is None:
         return _skip("сумма договора из текста не определена")
     if amount < BANK_REGISTRATION_THRESHOLD:
-        return _skip(f"сумма {_amount(amount)} ниже порога постановки на учёт")
+        return _skip(
+            f"сумма {_amount(amount)} ниже порога постановки на учёт "
+            "импортного контракта (п. 4.3 Инструкции № 181-И — 3 млн руб.)"
+        )
 
     if contract.has_any(r"постановк\w*\s+на\s+учёт", r"на\s+учёт\s+в\s+уполномоченн\w+\s+банк"):
-        return _passed("постановка контракта на учёт в уполномоченном банке предусмотрена")
+        return _passed(
+            "постановка контракта на учёт в уполномоченном банке предусмотрена "
+            "(п. 4.3, п. 5.1 Инструкции № 181-И)"
+        )
 
     return _failed(
-        f"сумма {_amount(amount)} требует постановки контракта на учёт, "
+        f"сумма {_amount(amount)} не ниже порога постановки на учёт "
+        "импортного контракта по пункту 4.3 Инструкции Банка России № 181-И, "
         "но в договоре это не оговорено"
     )
+
+
+@register("no_payment_splitting")
+def no_payment_splitting(contract: ContractView) -> Outcome:
+    amount = contract.contract_amount()
+    rub = [item.value for item in contract.facts.amounts if item.currency == "RUB"]
+    unique = sorted(set(rub))
+    has_schedule = contract.has_any(
+        r"транш", r"поэтапн", r"график\s+платеж", r"платеж\w*\s+частями", r"частями"
+    )
+
+    threshold: Decimal | None = None
+    if amount is not None and amount >= MANDATORY_CONTROL_THRESHOLD:
+        threshold = MANDATORY_CONTROL_THRESHOLD
+    elif amount is not None and amount >= BANK_REGISTRATION_THRESHOLD:
+        threshold = BANK_REGISTRATION_THRESHOLD
+
+    below = [value for value in unique if threshold is not None and value < threshold]
+    if threshold is not None and len(below) >= 2:
+        return _failed(
+            f"в договоре несколько сумм ниже порога {_amount(threshold)} "
+            f"при общей сумме {_amount(amount)}"
+        )
+
+    if has_schedule and amount is not None and amount >= BANK_REGISTRATION_THRESHOLD:
+        return _unresolved(
+            "в договоре указан график или оплата частями; по суммам траншей "
+            "вывод сделать нельзя"
+        )
+
+    return _passed("признаков искусственного дробления платежей в тексте не видно")
 
 
 # --- G. Риски и AML ---
@@ -448,3 +584,22 @@ def retention_period(contract: ContractView) -> Outcome:
         return _passed("срок хранения документов — не менее пяти лет")
 
     return _failed("не установлен срок хранения документов по операциям")
+
+
+@register("tax_report_assistance")
+def tax_report_assistance(contract: ContractView) -> Outcome:
+    if not contract.has_any(r"не\s+администриру\w*.{0,80}депозитари"):
+        if contract.facts.mentions_depositary:
+            return _skip(
+                "расчёты через депозитарий: содействие в отчёте по статье 12.1 "
+                "этим правилом не требуется"
+            )
+        return _skip("недепозитарный адрес в договоре не назван")
+
+    if contract.has_any(r"отч[её]т\w*\s+в\s+налогов", r"налогов\w+\s+орган"):
+        return _passed("предусмотрено содействие в подготовке отчёта в налоговые органы")
+
+    return _failed(
+        "при расчётах через недепозитарный адрес нет оговорки о содействии "
+        "в отчёте в налоговые органы"
+    )

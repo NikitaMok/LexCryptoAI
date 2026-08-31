@@ -83,7 +83,7 @@ def _print_findings(
         if finding.sanction:
             print(f"    последствие: {finding.sanction}")
         if finding.recommendation:
-            print("    как исправить:")
+            print("    редакция:")
             print(_wrap(finding.recommendation))
         print()
 
@@ -110,7 +110,7 @@ def print_clause_notes(llm) -> None:
     if llm is None:
         return
     payload = llm.to_dict() if hasattr(llm, "to_dict") else llm
-    print(f"\nСМЫСЛ ОГОВОРОК (ЛОКАЛЬНАЯ МОДЕЛЬ, НЕ ВЕРДИКТ)\n{RULE}")
+    print(f"\nОГОВОРКИ, КОТОРЫЕ ФОРМАЛЬНАЯ ПРОВЕРКА НЕ ЛОВИТ\n{RULE}")
     print(payload.get("detail") or "")
     if payload.get("model"):
         print(f"    модель: {payload['model']}")

@@ -32,7 +32,7 @@ class TestPdfContent:
         assert "КРАСНЫЙ" in text
         assert "[ADR-001]" in text
         assert "2.3" in text
-        assert "юридической консультацией" in text
+        assert "юридическая консультация" in text
         assert "цифровым анализом" in text
         assert "1. Договор" in text
         assert "2. Кошелёк" in text

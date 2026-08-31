@@ -53,20 +53,37 @@ class TestOutput:
         assert "норма: 282-ФЗ, ст. 1 ч. 7 п. 1" in output
         assert "по внешнеторговым договорам" not in output
 
-    def test_unverified_norm_is_marked_not_invented(self, violating_docx: Path, capsys):
-        """По Инструкции 181-И текста нет — это должно быть сказано прямо."""
+    def test_instruction_threshold_is_quoted(self, violating_docx: Path, capsys):
         main([str(violating_docx), "--on", "2026-09-01", "--quote-norms"])
         output = capsys.readouterr().out
 
-        assert "текст не выверен" in output
+        assert "181-И, п. 4.3" in output
+        assert "3 млн рублей" in output
+        assert "требует сверки редакции" not in output
 
-    def test_deferred_and_manual_blocks_present(self, compliant_docx: Path, capsys):
+    def test_article_7_gap_is_not_invented(self):
+        from app.norms.index import Citation, NormIndex
+
+        norms = NormIndex.load()
+        found = norms.resolve(Citation(act="115-ФЗ", article="7"))
+        empty = [norm for norm in found if not norm.has_text]
+
+        assert empty
+        assert all(norm.note for norm in empty)
+
+    def test_deferred_block_present_on_compliant(self, compliant_docx: Path, capsys):
         main([str(compliant_docx), "--on", "2026-09-01"])
         output = capsys.readouterr().out
 
         assert "НОРМЫ, ВСТУПАЮЩИЕ В СИЛУ ПОЗДНЕЕ" in output
-        assert "ТРЕБУЕТ ОЦЕНКИ ЮРИСТА" in output
         assert "Итого правил: 32" in output
+
+    def test_unresolved_fatf_listed_as_manual_on_violating(self, violating_docx: Path, capsys):
+        main([str(violating_docx), "--on", "2026-09-01"])
+        output = capsys.readouterr().out
+
+        assert "ТРЕБУЕТ ОЦЕНКИ ЮРИСТА" in output
+        assert "AML-002" in output
 
 
 class TestSearch:

@@ -79,6 +79,27 @@ class TestEgrulMock:
         assert not egrul.performed
         assert "сверка не выполнена" in egrul.detail or "не вернул" in egrul.detail
 
+    def test_html_challenge_is_not_success(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            host = request.url.host or ""
+            html = "<html><div class='g-recaptcha'></div>Just a moment</html>"
+            if "rusprofile" in host:
+                return httpx.Response(200, text=html)
+            if "saby.ru" in host:
+                return httpx.Response(200, text=html)
+            if "nalog.gov.ru" in host:
+                return httpx.Response(200, text=html)
+            return httpx.Response(503, text="offline")
+
+        transport = httpx.MockTransport(handler)
+        with httpx.Client(transport=transport) as client:
+            hits = lookup_free_sources("6659123456", "ООО «Уралимпорт»", client)
+
+        for source_id in ("egrul", "rusprofile", "saby"):
+            hit = next(item for item in hits if item.source_id == source_id)
+            assert not hit.performed
+            assert "сверка не выполнена" in hit.detail or "капч" in hit.detail.lower()
+
 
 class TestReview:
     def test_no_identifiers_stated_plainly(self):

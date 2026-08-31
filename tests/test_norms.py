@@ -8,7 +8,6 @@ from app.rules.registry import load_rules
 # пробел, а не забытую сверку.
 ACKNOWLEDGED_GAPS = {
     ("115-ФЗ", "7"),
-    ("181-И", "требует сверки редакции"),
 }
 
 
@@ -31,15 +30,25 @@ class TestCitationParsing:
             ("ст. 24 ч. 1-2", ("24", "1-2", None, None)),
             ("ст. 6 п. 1.12", ("6", None, "1.12", None)),
             ("ст. 7.2-1 п. 1 подп. 2", ("7.2-1", None, "1", "2")),
+            ("ст. 7 п. 2", ("7", None, "2", None)),
             ("ст. 3 ч. 7-8", ("3", "7-8", None, None)),
             ("ст. 35 ч. 1", ("35", "1", None, None)),
+            ("п. 4.3", ("4.3", None, None, None)),
+            ("п. 5.1", ("5.1", None, None, None)),
         ],
     )
     def test_parses_matrix_formats(self, ref, expected):
-        citation = Citation.parse("282-ФЗ", ref)
+        act = "181-И" if ref.startswith("п.") else "282-ФЗ"
+        citation = Citation.parse(act, ref)
 
         assert citation is not None
         assert (citation.article, citation.part, citation.point, citation.subpoint) == expected
+
+    def test_instruction_point_not_called_article(self):
+        citation = Citation.parse("181-И", "п. 4.3")
+
+        assert citation is not None
+        assert str(citation) == "181-И, п. 4.3"
 
     def test_rejects_non_citation(self):
         assert Citation.parse("181-И", "требует сверки редакции") is None
@@ -53,7 +62,7 @@ class TestCitationParsing:
 class TestCorpus:
     def test_corpus_is_loaded(self, norms):
         assert len(norms) > 100
-        assert {"282-ФЗ", "115-ФЗ", "173-ФЗ"} <= norms.acts
+        assert {"282-ФЗ", "115-ФЗ", "173-ФЗ", "181-И"} <= norms.acts
 
     def test_every_citation_in_matrix_resolves(self, norms, rules):
         unresolved = []
@@ -141,6 +150,36 @@ class TestKeyNormsAreVerbatim:
 
         assert found
         assert "налоговые органы" in found[0].text
+
+    def test_bank_registration_threshold(self, norms):
+        found = norms.resolve_ref("181-И", "п. 4.3")
+
+        assert found
+        assert found[0].has_text
+        assert "3 млн рублей" in found[0].text
+        assert "10 млн рублей" in found[0].text
+        assert found[0].reference == "181-И, п. 4.3"
+
+    def test_noncustodial_credit_is_verbatim(self, norms):
+        found = norms.resolve_ref("115-ФЗ", "ст. 6 п. 1 подп. 10")
+
+        assert found
+        assert found[0].has_text
+        assert "не администрируемого цифровым депозитарием" in found[0].text
+
+    def test_article_7_point_2_gap_is_explicit(self, norms):
+        found = norms.resolve_ref("115-ФЗ", "ст. 7 п. 2")
+
+        assert found
+        assert all(not norm.has_text for norm in found)
+        assert all(norm.note for norm in found)
+
+    def test_bank_registration_duty(self, norms):
+        found = norms.resolve_ref("181-И", "п. 5.1")
+
+        assert found
+        assert "постановку на учет" in found[0].text
+        assert "уполномоченном банке" in found[0].text
 
 
 class TestResolutionNarrowing:

@@ -68,7 +68,7 @@ class TestCompliantContract:
     def test_key_rules_pass(self, compliant, rules):
         report = evaluate(compliant, rules, moment=LAW_IN_FORCE)
 
-        for code in ("FTC-001", "AST-001", "ADR-001", "RTE-002", "TRV-001", "THR-001"):
+        for code in ("FTC-001", "AST-001", "ADR-001", "RTE-002", "TRV-001", "THR-001", "THR-002"):
             assert report.by_code(code).status is FindingStatus.PASSED, code
 
     def test_evidence_is_filled_for_passed_rules(self, compliant, rules):
@@ -157,13 +157,40 @@ class TestApplicability:
         assert "№ 115-ФЗ, но обязанность" in evidence
         assert "  " not in evidence
 
-    def test_manual_rules_are_listed_separately(self, compliant, rules):
+    def test_manual_rules_are_empty_on_complete_sample(self, compliant, rules):
         report = evaluate(compliant, rules, moment=LAW_IN_FORCE)
-        manual = report.needs_manual_review()
 
-        assert manual
-        assert {"AML-002", "THR-003"} <= {finding.code for finding in manual}
-        assert all(not finding.is_violation for finding in manual)
+        assert report.needs_manual_review() == []
+        assert report.by_code("AML-002").status is FindingStatus.PASSED
+        assert report.by_code("THR-003").status is FindingStatus.PASSED
+
+    def test_splitting_schedule_is_flagged(self, rules, tmp_path: Path):
+        from docx import Document as DocxDocument
+
+        path = tmp_path / "split.docx"
+        document = DocxDocument()
+        document.add_paragraph(
+            "1. Общая стоимость Товара составляет 12 000 000 рублей. "
+            "Оплата: первый платёж 2 900 000 рублей, второй платёж 2 900 000 рублей, "
+            "третий платёж 2 900 000 рублей, четвёртый платёж 3 300 000 рублей."
+        )
+        document.save(str(path))
+
+        report = evaluate(ContractView.from_file(path), rules, moment=LAW_IN_FORCE)
+
+        assert report.by_code("THR-003").status is FindingStatus.FAILED
+
+    def test_agent_without_principal_fails(self, rules, tmp_path: Path):
+        from docx import Document as DocxDocument
+
+        path = tmp_path / "agent.docx"
+        document = DocxDocument()
+        document.add_paragraph("1. Покупатель действует как агент.")
+        document.save(str(path))
+
+        report = evaluate(ContractView.from_file(path), rules, moment=LAW_IN_FORCE)
+
+        assert report.by_code("FTC-004").status is FindingStatus.FAILED
 
     def test_threshold_rule_skipped_below_amount(self, rules, tmp_path: Path):
         from docx import Document as DocxDocument

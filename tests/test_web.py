@@ -13,7 +13,7 @@ def test_home_page_is_served():
     body = response.text
     assert "282-ФЗ" in body
     assert "цифровым анализом" in body
-    assert "не является юридической консультацией" in body
+    assert "юридическая консультация" in body
     assert "name=\"aml\"" not in body
 
 

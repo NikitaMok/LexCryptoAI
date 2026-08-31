@@ -88,7 +88,7 @@ def test_activity_split_on_law_entry_date(rules):
 
 def test_examples_present_for_key_mandatory_rules(rules):
     """Правила, по которым чаще всего ошибаются, обязаны иметь примеры формулировок."""
-    codes_needing_examples = {"FTC-001", "AST-001", "ADR-001", "RTE-002"}
+    codes_needing_examples = {"FTC-001", "AST-001", "ADR-001", "RTE-002", "THR-002"}
     by_code = {rule.code: rule for rule in rules.rules}
 
     for code in codes_needing_examples:

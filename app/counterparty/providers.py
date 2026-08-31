@@ -25,6 +25,24 @@ _EGRUL_START = "https://egrul.nalog.gov.ru/"
 _RUSPROFILE_SEARCH = "https://www.rusprofile.ru/search"
 _SABY_CARD = "https://saby.ru/contragents/{inn}"
 
+_BLOCK_MARKERS = (
+    "smartcaptcha",
+    "g-recaptcha",
+    "hcaptcha",
+    "cf-challenge",
+    "captcha required",
+    "доступ ограничен",
+    "just a moment",
+)
+
+
+def _blocked_page(html: str, inn: str) -> bool:
+    """Капча и заглушка CDN — не карточка организации."""
+    lowered = html.lower()
+    if inn and inn in html and ("<h1" in lowered or "огрн" in lowered or "ogrn" in lowered):
+        return False
+    return any(marker in lowered for marker in _BLOCK_MARKERS)
+
 
 def lookup_free_sources(
     inn: str | None,
@@ -68,6 +86,8 @@ def _egrul(inn: str, name: str, session: httpx.Client) -> SourceHit:
     try:
         start = session.post(_EGRUL_START, data={"query": inn})
         start.raise_for_status()
+        if _blocked_page(start.text, inn):
+            return skipped("egrul", "ЕГРЮЛ не вернул результат поиска (капча или заглушка)")
         if "text/html" in start.headers.get("content-type", "") and "t" not in start.text[:200]:
             try:
                 payload = start.json()
@@ -113,6 +133,13 @@ def _egrul(inn: str, name: str, session: httpx.Client) -> SourceHit:
             status=status,
             name_match=match,
             detail=detail,
+        )
+    except httpx.TimeoutException:
+        return skipped("egrul", "таймаут запроса, сверка не выполнена")
+    except httpx.HTTPStatusError as error:
+        return skipped(
+            "egrul",
+            f"ЕГРЮЛ ответил отказом (HTTP {error.response.status_code}), сверка не выполнена",
         )
     except httpx.HTTPError as error:
         return skipped("egrul", f"ЕГРЮЛ недоступен: {error.__class__.__name__}")
@@ -178,7 +205,16 @@ def _rusprofile(inn: str, name: str, session: httpx.Client) -> SourceHit:
     try:
         response = session.get(_RUSPROFILE_SEARCH, params={"query": inn})
         response.raise_for_status()
+        if _blocked_page(response.text, inn):
+            return skipped("rusprofile", "Rusprofile вернул капчу или заглушку, сверка не выполнена")
         return _page_hit("rusprofile", inn, name, response.text)
+    except httpx.TimeoutException:
+        return skipped("rusprofile", "таймаут запроса, сверка не выполнена")
+    except httpx.HTTPStatusError as error:
+        return skipped(
+            "rusprofile",
+            f"Rusprofile ответил отказом (HTTP {error.response.status_code}), сверка не выполнена",
+        )
     except httpx.HTTPError as error:
         return skipped("rusprofile", f"Rusprofile недоступен: {error.__class__.__name__}")
 
@@ -187,6 +223,15 @@ def _saby(inn: str, name: str, session: httpx.Client) -> SourceHit:
     try:
         response = session.get(_SABY_CARD.format(inn=inn))
         response.raise_for_status()
+        if _blocked_page(response.text, inn):
+            return skipped("saby", "СБИС вернул капчу или заглушку, сверка не выполнена")
         return _page_hit("saby", inn, name, response.text)
+    except httpx.TimeoutException:
+        return skipped("saby", "таймаут запроса, сверка не выполнена")
+    except httpx.HTTPStatusError as error:
+        return skipped(
+            "saby",
+            f"СБИС ответил отказом (HTTP {error.response.status_code}), сверка не выполнена",
+        )
     except httpx.HTTPError as error:
         return skipped("saby", f"СБИС недоступен: {error.__class__.__name__}")

@@ -58,10 +58,10 @@ class TestFatfPredicate:
 
         assert outcome.verdict is Verdict.PASSED
 
-    def test_compliant_contract_stays_on_lawyer_review(self, compliant_docx):
+    def test_compliant_contract_passes_fatf_clause(self, compliant_docx):
         report = evaluate(ContractView.from_file(compliant_docx), moment=LAW_IN_FORCE)
 
-        assert report.by_code("AML-002").status is FindingStatus.NOT_AUTOMATED
+        assert report.by_code("AML-002").status is FindingStatus.PASSED
         assert report.status.value == "green"
 
 

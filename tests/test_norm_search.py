@@ -107,7 +107,12 @@ class TestSearch:
 
     def test_gap_entries_are_not_searchable(self, search):
         """Нормы без выверенного текста не должны попадать в выдачу."""
-        hits = search.search("инструкция постановка на учёт", limit=20)
+        hits = search.search("внутренний контроль уклонение обязательного контроля", limit=20)
 
         assert all(hit.norm.has_text for hit in hits)
-        assert all(hit.norm.act != "181-И" for hit in hits)
+        assert all(not (hit.norm.act == "115-ФЗ" and hit.norm.article == "7" and not hit.norm.has_text) for hit in hits)
+
+    def test_instruction_threshold_is_searchable(self, search):
+        hits = search.search("постановка на учет импортных контрактов 3 млн", limit=10)
+
+        assert any(hit.norm.act == "181-И" and hit.norm.article == "4.3" for hit in hits)
