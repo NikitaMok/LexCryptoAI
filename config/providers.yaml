@@ -1,0 +1,100 @@
+# Источники проверки. Этот файл — то, что работает «как скачали».
+# Ключи в git не пишутся: они лежат в `.env` (см. `.env.example`).
+#
+# Бесплатный режим: все записи с tier: free и enabled: true.
+# Свои платные сервисы: включить запись с tier: paid и прописать ключ в `.env`.
+# Сменить модель: проще всего OLLAMA_MODEL в `.env` — он перекрывает поле llm.model.
+
+llm:
+  provider: ollama
+  # Класс 70B. Легковесные и средние модели для разбора договора не ставить.
+  model: llama3.3:70b
+  base_url: http://127.0.0.1:11434
+
+wallet:
+  # --- бесплатные, включены сразу ---
+  - id: trongrid
+    enabled: true
+    tier: free
+    what: "возраст адреса, число транзакций, баланс USDT в сети TRON"
+    base_url: https://api.trongrid.io
+    # ключ не обязателен; без него действует лимит публичного API
+    env_key: TRONGRID_API_KEY
+
+  - id: etherscan
+    enabled: true
+    tier: free
+    what: "возраст и активность адреса в Ethereum (ERC-20)"
+    base_url: https://api.etherscan.io
+    # бесплатный ключ с etherscan.io; без него ERC-20 не опрашивается
+    env_key: ETHERSCAN_API_KEY
+
+  - id: goplus
+    enabled: true
+    tier: free
+    what: "публичные метки риска адреса (фишинг, мошенничество, известные инциденты)"
+    base_url: https://api.gopluslabs.io
+
+  # --- платные, выключены. Включить: enabled: true и ключ в `.env` ---
+  - id: chainalysis
+    enabled: false
+    tier: paid
+    what: "коммерческий KYT / связь с нелегальным оборотом"
+    env_key: CHAINALYSIS_API_KEY
+    module: app.aml.providers
+
+  - id: elliptic
+    enabled: false
+    tier: paid
+    what: "коммерческий скоринг адреса"
+    env_key: ELLIPTIC_API_KEY
+    module: app.aml.providers
+
+  - id: bitok
+    enabled: false
+    tier: paid
+    what: "российский коммерческий скоринг криптоадресов"
+    env_key: BITOK_API_KEY
+    module: app.aml.providers
+
+counterparty:
+  # --- бесплатные, включены сразу ---
+  - id: egrul
+    enabled: true
+    tier: free
+    what: "карточка российской организации в ЕГРЮЛ (ФНС): статус, ликвидация, наименование"
+    base_url: https://egrul.nalog.gov.ru
+
+  - id: rusprofile
+    enabled: true
+    tier: free
+    what: "открытые сведения о юрлице и ИП на rusprofile.ru"
+    base_url: https://www.rusprofile.ru
+
+  - id: saby
+    enabled: true
+    tier: free
+    what: "открытые сведения о контрагенте на saby.ru (СБИС)"
+    base_url: https://saby.ru
+
+  # --- платные, выключены ---
+  - id: kontur_focus
+    enabled: false
+    tier: paid
+    what: "Контур.Фокус: расширенная карточка, связи, признаки недостоверности"
+    env_key: KONTUR_FOCUS_KEY
+    module: app.counterparty.providers
+
+  - id: spark
+    enabled: false
+    tier: paid
+    what: "СПАРК-Интерфакс"
+    env_key: SPARK_API_KEY
+    module: app.counterparty.providers
+
+  - id: sbis_api
+    enabled: false
+    tier: paid
+    what: "официальный API СБИС по договору, не публичная страница"
+    env_key: SBIS_API_KEY
+    module: app.counterparty.providers

@@ -18,8 +18,10 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
 
-    llm_provider: str = "gigachat"
+    llm_provider: str = "ollama"
     llm_temperature: float = 0.0
+    ollama_base_url: str = "http://127.0.0.1:11434"
+    ollama_model: str = "llama3.3:70b"
 
     database_url: str = "postgresql+psycopg://lexcrypto:@localhost:5432/lexcrypto"
 
