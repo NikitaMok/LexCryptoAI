@@ -47,6 +47,15 @@ def test_paid_sources_are_off_by_default():
     assert catalog.enabled("counterparty", tier="paid") == []
 
 
+def test_paid_without_key_is_not_ready():
+    catalog = load_catalog()
+
+    assert catalog.uses("wallet", "trongrid")
+    assert catalog.uses("counterparty", "egrul")
+    assert not catalog.uses("wallet", "chainalysis")
+    assert not catalog.uses("counterparty", "kontur_focus")
+
+
 def test_paid_entries_name_env_key_and_module():
     catalog = load_catalog()
 

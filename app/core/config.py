@@ -22,6 +22,15 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.0
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "llama3.3:70b"
+    # 70B на первом токене может думать минуты; меньше — обрыв посреди ответа.
+    ollama_timeout_s: float = 300.0
+
+    chainalysis_api_key: str = ""
+    elliptic_api_key: str = ""
+    bitok_api_key: str = ""
+    kontur_focus_key: str = ""
+    spark_api_key: str = ""
+    sbis_api_key: str = ""
 
     database_url: str = "postgresql+psycopg://lexcrypto:@localhost:5432/lexcrypto"
 

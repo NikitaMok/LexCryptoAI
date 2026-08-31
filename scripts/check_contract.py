@@ -18,9 +18,11 @@ from pathlib import Path
 from app.norms.hybrid import hybrid_search
 from app.norms.index import NormIndex, get_norms
 from app.parsing.document import EmptyDocumentError, UnsupportedFormatError
+from app.pipeline import run_check
 from app.report.serialize import STATUS_LABEL
 from app.rules.contract import ContractView
-from app.rules.engine import ContractStatus, Finding, FindingStatus, Report, evaluate
+from app.rules.engine import ContractStatus, Finding, FindingStatus, Report
+from app.rules.guardrail import CircumventionAttempt
 
 RULE = "-" * 78
 
@@ -104,10 +106,50 @@ def print_search(query: str, limit: int = 8, *, use_dense: bool | None = None) -
         print()
 
 
-def print_address_scores(scores: list) -> None:
-    if not scores:
+def print_clause_notes(llm) -> None:
+    if llm is None:
         return
-    print(f"\nАДРЕСА ПО ОТКРЫТЫМ ДАННЫМ\n{RULE}")
+    payload = llm.to_dict() if hasattr(llm, "to_dict") else llm
+    print(f"\nСМЫСЛ ОГОВОРОК (ЛОКАЛЬНАЯ МОДЕЛЬ, НЕ ВЕРДИКТ)\n{RULE}")
+    print(payload.get("detail") or "")
+    if payload.get("model"):
+        print(f"    модель: {payload['model']}")
+    for note in payload.get("notes") or []:
+        present = note.get("present")
+        mark = "есть в тексте" if present else "в тексте не видно" if present is False else "не ясно"
+        print(f"[{note.get('code')}] {mark}")
+        if note.get("quote"):
+            print(_wrap("цитата: " + note["quote"]))
+        if note.get("reading"):
+            print(_wrap(note["reading"]))
+    print()
+
+
+def print_counterparties(parties: list) -> None:
+    print(f"\nКОНТРАГЕНТ\n{RULE}")
+    if not parties:
+        print("сверка не выполнена")
+        print()
+        return
+    for item in parties:
+        payload = item.to_dict() if hasattr(item, "to_dict") else item
+        who = payload.get("name") or payload.get("inn") or "сторона не названа"
+        print(who)
+        if payload.get("inn"):
+            print(f"    ИНН {payload['inn']}")
+        if payload.get("summary"):
+            print(_wrap(str(payload["summary"]), indent="    "))
+        for hit in payload.get("hits") or []:
+            print(_wrap(str(hit.get("detail") or hit.get("source")), indent="    "))
+        print()
+
+
+def print_address_scores(scores: list) -> None:
+    print(f"\nКОШЕЛЁК\n{RULE}")
+    if not scores:
+        print("в тексте нет адреса; оценка по открытым данным не выполнялась")
+        print()
+        return
     for item in scores:
         payload = item.to_dict() if hasattr(item, "to_dict") else item
         line = f"{payload.get('address')} ({payload.get('network')}): {payload.get('band')}"
@@ -116,8 +158,12 @@ def print_address_scores(scores: list) -> None:
         print(line)
         for factor in payload.get("factors") or []:
             print(f"    {factor}")
+        for label in payload.get("labels") or []:
+            print(f"    метка: {label}")
         if payload.get("error"):
             print(f"    {payload['error']}")
+        for note in payload.get("source_notes") or []:
+            print(f"    {note}")
         if payload.get("disclaimer"):
             print(_wrap(str(payload["disclaimer"]), indent="    "))
         print()
@@ -184,11 +230,6 @@ def main(argv: list[str] | None = None) -> int:
         help="сохранить заключение в PDF",
     )
     parser.add_argument(
-        "--aml",
-        action="store_true",
-        help="оценить извлечённые адреса по открытым данным (не цифровой анализ)",
-    )
-    parser.add_argument(
         "--dense",
         action="store_true",
         help="подключить поиск по эмбеддингам (нужен fastembed и кэш векторов)",
@@ -199,7 +240,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--dense только вместе с --search")
 
     if args.search is not None:
-        if args.path is not None or args.pdf is not None or args.aml:
+        if args.path is not None or args.pdf is not None:
             parser.error("укажите либо путь к контракту, либо --search")
         print_search(args.search, use_dense=True if args.dense else None)
         return 0
@@ -213,33 +254,36 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Ошибка: {error}", file=sys.stderr)
         return 2
 
-    report = evaluate(contract, moment=args.on)
-    scores = []
-    if args.aml:
-        from app.aml.service import score_contract_addresses
+    try:
+        result = run_check(contract, source_name=args.path.name, moment=args.on)
+    except CircumventionAttempt as error:
+        print(f"Ошибка: {error}", file=sys.stderr)
+        return 2
 
-        scores = score_contract_addresses(contract)
-
-    print_report(report, args.path, quote_norms=args.quote_norms)
-    print_address_scores(scores)
+    print_report(result.report, args.path, quote_norms=args.quote_norms)
+    print_clause_notes(result.llm)
+    print_address_scores(list(result.address_scores))
+    print_counterparties(list(result.counterparties))
 
     if args.pdf is not None:
         from app.report.pdf import MissingCyrillicFontError, write_pdf
 
         try:
             write_pdf(
-                report,
+                result.report,
                 args.pdf,
                 source_name=args.path.name,
                 quote_norms=args.quote_norms,
-                address_scores=scores,
+                address_scores=list(result.address_scores),
+                counterparties=list(result.counterparties),
+                llm=result.llm,
             )
         except (MissingCyrillicFontError, OSError) as error:
             print(f"Ошибка: {error}", file=sys.stderr)
             return 2
         print(f"PDF: {args.pdf}")
 
-    return 1 if report.status is ContractStatus.RED else 0
+    return 1 if result.report.status is ContractStatus.RED else 0
 
 
 if __name__ == "__main__":

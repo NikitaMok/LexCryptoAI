@@ -52,6 +52,13 @@ _AMOUNT = re.compile(
 )
 
 _INN = re.compile(r"ИНН[\s:№]*(\d{10}|\d{12})\b", re.IGNORECASE)
+_RU_ORG = re.compile(
+    r"(?:ООО|АО|ПАО|НАО|ЗАО|ОАО|ИП)\s+[«\"'][^»\"']{2,160}[»\"']",
+    re.IGNORECASE,
+)
+_EN_ORG = re.compile(
+    r"\b[A-Z][A-Za-z0-9&.,' \-]{2,80}(?:Co\.,?\s*Ltd\.?|Ltd\.|Inc\.|GmbH|LLC)\b"
+)
 
 _FOREIGN_TRADE = re.compile(r"внешнеторгов\w*", re.IGNORECASE)
 _RESIDENT = re.compile(r"\bрезидент\w*", re.IGNORECASE)
@@ -71,6 +78,12 @@ class WalletAddress:
 
 
 @dataclass(frozen=True)
+class PartyMention:
+    name: str
+    inn: str | None = None
+
+
+@dataclass(frozen=True)
 class MoneyAmount:
     value: Decimal
     currency: str
@@ -84,6 +97,7 @@ class ExtractedFacts:
     networks: list[str] = field(default_factory=list)
     amounts: list[MoneyAmount] = field(default_factory=list)
     inns: list[str] = field(default_factory=list)
+    parties: list[PartyMention] = field(default_factory=list)
     mentions_foreign_trade: bool = False
     mentions_resident: bool = False
     mentions_non_resident: bool = False
@@ -154,6 +168,34 @@ def _find_known(text: str, catalogue: dict[str, tuple[str, ...]]) -> list[str]:
     ]
 
 
+def extract_party_mentions(text: str) -> list[PartyMention]:
+    names: list[str] = []
+    for match in _RU_ORG.finditer(text):
+        names.append(" ".join(match.group(0).split()))
+    for match in _EN_ORG.finditer(text):
+        names.append(" ".join(match.group(0).split()))
+
+    inns = [match.group(1) for match in _INN.finditer(text)]
+    parties: list[PartyMention] = []
+    used_inns: set[str] = set()
+
+    for name in names:
+        linked: str | None = None
+        pos = text.find(name)
+        window = text[max(0, pos - 80) : pos + len(name) + 120] if pos >= 0 else ""
+        for inn in inns:
+            if inn in window:
+                linked = inn
+                used_inns.add(inn)
+                break
+        parties.append(PartyMention(name=name, inn=linked))
+
+    for inn in inns:
+        if inn not in used_inns:
+            parties.append(PartyMention(name="", inn=inn))
+    return parties
+
+
 def extract_facts(text: str) -> ExtractedFacts:
     return ExtractedFacts(
         wallet_addresses=extract_wallet_addresses(text),
@@ -161,6 +203,7 @@ def extract_facts(text: str) -> ExtractedFacts:
         networks=_find_known(text, _NETWORKS),
         amounts=extract_amounts(text),
         inns=[match.group(1) for match in _INN.finditer(text)],
+        parties=extract_party_mentions(text),
         mentions_foreign_trade=bool(_FOREIGN_TRADE.search(text)),
         mentions_resident=bool(_RESIDENT.search(text)),
         mentions_non_resident=bool(_NON_RESIDENT.search(text)),

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pdfplumber
 
-from app.report.pdf import DISCLAIMER, FOOTER, TITLE, render_pdf, write_pdf
+from app.report.pdf import DISCLAIMER, FOOTER, TITLE, WALLET_NOT_ANALYSIS, render_pdf, write_pdf
 from app.rules.contract import ContractView
 from app.rules.engine import evaluate
 from app.rules.guardrail import inspect
@@ -20,7 +20,7 @@ def _text(data: bytes) -> str:
 
 class TestPdfContent:
     def test_static_wording_is_clean(self):
-        for fragment in (TITLE, DISCLAIMER, FOOTER):
+        for fragment in (TITLE, DISCLAIMER, FOOTER, WALLET_NOT_ANALYSIS):
             assert inspect(fragment) == []
 
     def test_violating_contract_pdf_names_blocking_rules(
@@ -34,6 +34,9 @@ class TestPdfContent:
         assert "2.3" in text
         assert "юридической консультацией" in text
         assert "цифровым анализом" in text
+        assert "1. Договор" in text
+        assert "2. Кошелёк" in text
+        assert "3. Контрагент" in text
 
     def test_cli_writes_pdf(self, compliant_docx: Path, tmp_path, capsys, cyrillic_font):
         output = tmp_path / "заключение.pdf"

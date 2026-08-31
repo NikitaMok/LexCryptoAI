@@ -14,6 +14,7 @@ def test_home_page_is_served():
     assert "282-ФЗ" in body
     assert "цифровым анализом" in body
     assert "не является юридической консультацией" in body
+    assert "name=\"aml\"" not in body
 
 
 def test_stylesheet_is_served():

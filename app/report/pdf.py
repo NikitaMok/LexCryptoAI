@@ -80,7 +80,16 @@ SECTION_BLOCKING = "Нарушены обязательные требовани
 SECTION_ADVISORY = "Замечания"
 SECTION_DEFERRED = "Нормы, вступающие в силу позднее"
 SECTION_MANUAL = "Требует оценки юриста"
-SECTION_ADDRESSES = "Адреса по открытым данным"
+SECTION_CONTRACT = "1. Договор"
+SECTION_CLAUSES = "Смысл оговорок (локальная модель, не вердикт)"
+SECTION_WALLET = "2. Кошелёк"
+SECTION_PARTY = "3. Контрагент"
+WALLET_EMPTY = "В тексте договора не найден адрес кошелька. Оценка по открытым данным не выполнялась."
+WALLET_NOT_ANALYSIS = (
+    "Оценка адреса по открытым данным не является цифровым анализом "
+    "в смысле статьи 35 Федерального закона от 04.08.2026 № 282-ФЗ."
+)
+PARTY_EMPTY = "сверка не выполнена: в прогоне нет данных о сторонах"
 
 
 class MissingCyrillicFontError(RuntimeError):
@@ -192,7 +201,8 @@ def _styles(font: str) -> dict[str, ParagraphStyle]:
             fontSize=8,
             leading=11,
             alignment=TA_JUSTIFY,
-            spaceBefore=16,
+            spaceBefore=8,
+            spaceAfter=10,
             textColor=HexColor("#333333"),
         ),
     }
@@ -252,6 +262,8 @@ def render_pdf(
     source_name: str,
     quote_norms: bool = False,
     address_scores: list | None = None,
+    counterparties: list | None = None,
+    llm=None,
 ) -> bytes:
     for fragment in (
         TITLE,
@@ -260,7 +272,13 @@ def render_pdf(
         FOOTER,
         SECTION_BLOCKING,
         SECTION_ADVISORY,
-        SECTION_ADDRESSES,
+        SECTION_CONTRACT,
+        SECTION_CLAUSES,
+        SECTION_WALLET,
+        SECTION_PARTY,
+        WALLET_EMPTY,
+        WALLET_NOT_ANALYSIS,
+        PARTY_EMPTY,
     ):
         assert_clean(fragment)
 
@@ -294,7 +312,10 @@ def render_pdf(
             ),
             styles["meta"],
         ),
+        Paragraph(_xml(DISCLAIMER), styles["disclaimer"]),
     ]
+
+    story.append(Paragraph(_xml(SECTION_CONTRACT), styles["heading"]))
 
     blocking = report.blocking_violations()
     if blocking:
@@ -319,8 +340,25 @@ def render_pdf(
         for finding in manual:
             story.append(Paragraph(_xml(f"[{finding.code}] {finding.title}"), styles["body"]))
 
+    if llm is not None:
+        payload = llm.to_dict() if hasattr(llm, "to_dict") else llm
+        story.append(Paragraph(_xml(SECTION_CLAUSES), styles["heading"]))
+        story.append(Paragraph(_xml(str(payload.get("detail") or "")), styles["body"]))
+        if payload.get("model"):
+            story.append(Paragraph(_xml(f"модель: {payload['model']}"), styles["indent"]))
+        for note in payload.get("notes") or []:
+            present = note.get("present")
+            mark = "есть в тексте" if present else "в тексте не видно" if present is False else "не ясно"
+            line = f"[{note.get('code')}] {mark}"
+            story.append(Paragraph(_xml(line), styles["body"]))
+            if note.get("quote"):
+                story.append(Paragraph(_xml("цитата: " + note["quote"]), styles["quote"]))
+            if note.get("reading"):
+                story.append(Paragraph(_xml(note["reading"]), styles["indent"]))
+
+    story.append(Paragraph(_xml(SECTION_WALLET), styles["heading"]))
+    story.append(Paragraph(_xml(WALLET_NOT_ANALYSIS), styles["quote"]))
     if address_scores:
-        story.append(Paragraph(_xml(SECTION_ADDRESSES), styles["heading"]))
         for item in address_scores:
             payload = item.to_dict() if hasattr(item, "to_dict") else item
             line = (
@@ -332,12 +370,28 @@ def render_pdf(
             story.append(Paragraph(_xml(line), styles["body"]))
             for factor in payload.get("factors") or []:
                 story.append(Paragraph(_xml(factor), styles["indent"]))
+            for label in payload.get("labels") or []:
+                story.append(Paragraph(_xml(f"метка: {label}"), styles["indent"]))
             if payload.get("error"):
                 story.append(Paragraph(_xml(str(payload["error"])), styles["indent"]))
-            if payload.get("disclaimer"):
-                story.append(Paragraph(_xml(str(payload["disclaimer"])), styles["quote"]))
+            for note in payload.get("source_notes") or []:
+                story.append(Paragraph(_xml(str(note)), styles["indent"]))
+    else:
+        story.append(Paragraph(_xml(WALLET_EMPTY), styles["body"]))
 
-    story.append(Paragraph(_xml(DISCLAIMER), styles["disclaimer"]))
+    story.append(Paragraph(_xml(SECTION_PARTY), styles["heading"]))
+    if counterparties:
+        for item in counterparties:
+            payload = item.to_dict() if hasattr(item, "to_dict") else item
+            who = payload.get("name") or payload.get("inn") or "сторона не названа"
+            story.append(Paragraph(_xml(str(who)), styles["body"]))
+            if payload.get("inn"):
+                story.append(Paragraph(_xml(f"ИНН {payload['inn']}"), styles["indent"]))
+            story.append(Paragraph(_xml(str(payload.get("summary") or "")), styles["indent"]))
+            for hit in payload.get("hits") or []:
+                story.append(Paragraph(_xml(str(hit.get("detail") or hit.get("source"))), styles["indent"]))
+    else:
+        story.append(Paragraph(_xml(PARTY_EMPTY), styles["body"]))
 
     buffer = BytesIO()
     document = SimpleDocTemplate(
@@ -361,6 +415,8 @@ def write_pdf(
     source_name: str,
     quote_norms: bool = False,
     address_scores: list | None = None,
+    counterparties: list | None = None,
+    llm=None,
 ) -> None:
     path.write_bytes(
         render_pdf(
@@ -368,5 +424,8 @@ def write_pdf(
             source_name=source_name,
             quote_norms=quote_norms,
             address_scores=address_scores,
+            counterparties=counterparties,
+            llm=llm,
         )
     )
+

@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from app.llm.clauses import ClauseAnalysis
 from app.norms.index import NormIndex, get_norms
 from app.rules.engine import ContractStatus, Finding, FindingStatus, Report
 
@@ -85,6 +86,8 @@ def serialize_report(
     source_name: str,
     quote_norms: bool = False,
     address_scores: list | None = None,
+    counterparties: list | None = None,
+    llm: ClauseAnalysis | None = None,
 ) -> dict:
     index = get_norms() if quote_norms else None
 
@@ -113,5 +116,10 @@ def serialize_report(
             item.to_dict() if hasattr(item, "to_dict") else item
             for item in (address_scores or [])
         ],
+        "counterparties": [
+            item.to_dict() if hasattr(item, "to_dict") else item
+            for item in (counterparties or [])
+        ],
+        "llm": llm.to_dict() if llm is not None else None,
     }
     return payload

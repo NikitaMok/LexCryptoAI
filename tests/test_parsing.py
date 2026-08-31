@@ -181,6 +181,15 @@ class TestFacts:
 
         assert "6659123456" in facts.inns
 
+    def test_party_names_extracted(self, compliant_docx: Path):
+        facts = extract_facts(load_document(compliant_docx).text)
+        names = " ".join(party.name for party in facts.parties)
+
+        assert "Уралимпорт" in names
+        assert "Shenzhen Precision Machinery" in names
+        ural = next(party for party in facts.parties if "Уралимпорт" in party.name)
+        assert ural.inn == "6659123456"
+
 
 def test_pdf_and_docx_give_the_same_legal_picture(compliant_docx: Path, compliant_pdf: Path):
     """Формат загрузки не должен влиять на результат проверки."""

@@ -8,7 +8,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, Field
 
-from app.core.config import PROJECT_ROOT, get_settings
+from app.core.config import PROJECT_ROOT, Settings, get_settings
 
 CATALOG_PATH = PROJECT_ROOT / "config" / "providers.yaml"
 
@@ -47,6 +47,26 @@ class Catalog(BaseModel):
             if item.id == source_id:
                 return item
         return None
+
+    def secret(self, source: Source, settings: Settings | None = None) -> str:
+        """Ключ из `.env` по имени `env_key`. Пустая строка, если ключа нет."""
+        if not source.env_key:
+            return ""
+        cfg = settings or get_settings()
+        return str(getattr(cfg, source.env_key.lower(), "") or "").strip()
+
+    def ready(self, group: str) -> list[Source]:
+        """Включённые источники, у которых для платного тарифа задан ключ."""
+        cfg = get_settings()
+        ready: list[Source] = []
+        for item in self.enabled(group):
+            if item.tier == "paid" and not self.secret(item, cfg):
+                continue
+            ready.append(item)
+        return ready
+
+    def uses(self, group: str, source_id: str) -> bool:
+        return any(item.id == source_id for item in self.ready(group))
 
 
 def _read_catalog(path: Path) -> Catalog:

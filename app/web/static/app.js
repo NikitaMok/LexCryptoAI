@@ -4,6 +4,7 @@ const errorBox = document.getElementById("error");
 const resultBox = document.getElementById("result");
 const searchForm = document.getElementById("search-form");
 const searchResult = document.getElementById("search-result");
+const busy = document.getElementById("busy");
 
 let lastFile = null;
 
@@ -22,7 +23,6 @@ function paramsFromForm() {
   const query = new URLSearchParams();
   query.set("on", data.get("on"));
   if (data.get("quote_norms")) query.set("quote_norms", "true");
-  if (data.get("aml")) query.set("aml", "true");
   return query;
 }
 
@@ -42,25 +42,61 @@ function findingsHtml(title, items) {
   return `<h2>${title}</h2>${blocks.join("")}`;
 }
 
-function renderReport(payload) {
-  const scores = (payload.address_scores || []).map((item) => {
+function walletHtml(scores) {
+  if (!scores || !scores.length) {
+    return `<h2>2. Кошелёк</h2><p>В тексте нет адреса. Оценка по открытым данным не выполнялась.</p>`;
+  }
+  const blocks = scores.map((item) => {
     const factors = (item.factors || []).map((factor) => `<p>${factor}</p>`).join("");
+    const labels = (item.labels || []).map((label) => `<p>метка: ${label}</p>`).join("");
+    const notes = (item.source_notes || []).map((note) => `<p>${note}</p>`).join("");
     const err = item.error ? `<p>${item.error}</p>` : "";
     const score = item.score != null ? `, оценка ${item.score}` : "";
-    return `<article class="finding"><p>${item.address} (${item.network}): ${item.band}${score}</p>${factors}${err}<p>${item.disclaimer || ""}</p></article>`;
+    return `<article class="finding"><p>${item.address} (${item.network}): ${item.band}${score}</p>${factors}${labels}${notes}${err}<p>${item.disclaimer || ""}</p></article>`;
   }).join("");
+  return `<h2>2. Кошелёк</h2>${blocks}`;
+}
 
+function partyHtml(parties) {
+  if (!parties || !parties.length) {
+    return `<h2>3. Контрагент</h2><p>сверка не выполнена</p>`;
+  }
+  const blocks = parties.map((item) => {
+    const who = item.name || item.inn || "сторона не названа";
+    const inn = item.inn ? `<p>ИНН ${item.inn}</p>` : "";
+    const hits = (item.hits || []).map((hit) => `<p>${hit.detail || hit.source}</p>`).join("");
+    return `<article class="finding"><p>${who}</p>${inn}<p>${item.summary || ""}</p>${hits}</article>`;
+  }).join("");
+  return `<h2>3. Контрагент</h2>${blocks}`;
+}
+
+function llmHtml(llm) {
+  if (!llm) return "";
+  const notes = (llm.notes || []).map((note) => {
+    const mark = note.present === true ? "есть в тексте" : note.present === false ? "в тексте не видно" : "не ясно";
+    const quote = note.quote ? `<p>цитата: ${note.quote}</p>` : "";
+    const reading = note.reading ? `<p>${note.reading}</p>` : "";
+    return `<article class="finding"><p>[${note.code}] ${mark}</p>${quote}${reading}</article>`;
+  }).join("");
+  const model = llm.model ? `<p>модель: ${llm.model}</p>` : "";
+  return `<h2>Смысл оговорок (локальная модель, не вердикт)</h2><p>${llm.detail || ""}</p>${model}${notes}`;
+}
+
+function renderReport(payload) {
   resultBox.hidden = false;
   resultBox.innerHTML = `
     <p class="status ${payload.status}">${payload.status_label}</p>
     <p>Документ: ${payload.source}. Проверено на дату: ${payload.checked_on}.</p>
     <p>Итого правил: ${payload.counts.total}. Выполнено: ${payload.counts.passed}.
        Нарушено: ${payload.counts.failed}. На ручной оценке: ${payload.counts.manual}.</p>
+    <h2>1. Договор</h2>
     ${findingsHtml("Нарушены обязательные требования", payload.blocking)}
     ${findingsHtml("Замечания", payload.advisory)}
     ${findingsHtml("Нормы, вступающие в силу позднее", payload.deferred)}
     ${findingsHtml("Требует оценки юриста", payload.manual)}
-    ${scores ? `<h2>Адреса по открытым данным</h2>${scores}` : ""}
+    ${llmHtml(payload.llm)}
+    ${walletHtml(payload.address_scores)}
+    ${partyHtml(payload.counterparties)}
   `;
 }
 
@@ -76,6 +112,7 @@ form.addEventListener("submit", async (event) => {
   lastFile = file;
   pdfBtn.disabled = true;
   resultBox.hidden = true;
+  busy.hidden = false;
 
   const body = new FormData();
   body.append("file", file, file.name);
@@ -94,12 +131,15 @@ form.addEventListener("submit", async (event) => {
     pdfBtn.disabled = false;
   } catch (error) {
     showError("нет связи с сервером");
+  } finally {
+    busy.hidden = true;
   }
 });
 
 pdfBtn.addEventListener("click", async () => {
   if (!lastFile) return;
   clearError();
+  busy.hidden = false;
   const body = new FormData();
   body.append("file", lastFile, lastFile.name);
   try {
@@ -120,6 +160,8 @@ pdfBtn.addEventListener("click", async () => {
     URL.revokeObjectURL(url);
   } catch (error) {
     showError("нет связи с сервером");
+  } finally {
+    busy.hidden = true;
   }
 });
 

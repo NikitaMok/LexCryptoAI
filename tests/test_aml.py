@@ -1,6 +1,8 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
+import httpx
+
 from app.aml.fatf import load_fatf_snapshot
 from app.aml.score import AddressSnapshot, score_snapshot
 from app.parsing.document import Document, SourceFormat
@@ -90,3 +92,50 @@ class TestAddressScore:
 
         assert result.score is None
         assert result.band == "нет данных"
+
+
+class TestGoPlusLabels:
+    def test_public_labels_raise_the_band(self):
+        snapshot = AddressSnapshot(
+            address="0xabc",
+            network="EVM",
+            created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            tx_count=50,
+            usdt_balance=Decimal(100),
+            risk_labels=("фишинг", "миксер"),
+        )
+
+        result = score_snapshot(
+            snapshot,
+            threshold=50,
+            now=datetime(2026, 8, 29, tzinfo=timezone.utc),
+        )
+
+        assert result.band == "высокий"
+        assert "фишинг" in result.factors[0] or any("фишинг" in item for item in result.factors)
+        assert result.labels == ("фишинг", "миксер")
+
+
+class TestGoPlusFetch:
+    def test_merges_labels_onto_tron_snapshot(self):
+        from app.aml.providers import fetch_snapshot
+        from app.parsing.extract import WalletAddress
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if "gopluslabs" in str(request.url):
+                return httpx.Response(
+                    200,
+                    json={"result": {"phishing_activities": "1", "sanctioned": "0"}},
+                )
+            if "accounts" in str(request.url) and "transactions" not in str(request.url):
+                return httpx.Response(200, json={"data": []})
+            return httpx.Response(200, json={"data": []})
+
+        transport = httpx.MockTransport(handler)
+        with httpx.Client(transport=transport) as client:
+            snapshot = fetch_snapshot(
+                WalletAddress(value="TQn9Y2khEsLJW1ChVWFMSMeRDow5KcbLSE", network="TRON"),
+                client,
+            )
+
+        assert "фишинг" in snapshot.risk_labels

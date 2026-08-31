@@ -11,6 +11,7 @@ def test_health_returns_ok():
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     assert response.json()["dense"] == "off"
+    assert response.json()["ollama"] in {"on", "off"}
 
 
 def test_settings_defaults_are_loadable():

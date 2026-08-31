@@ -2,32 +2,76 @@
 
 Какие источники включены — `config/providers.yaml`.
 Без ключа TronGrid отвечает с лимитом; Etherscan без ключа не вызывается.
+GoPlus отдаёт публичные метки риска. Платные коннекторы, если включены
+в yaml без реализации, в отчёте дают «оценка не выполнена», а не «чисто».
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal
 
 import httpx
 
 from app.aml.score import AddressSnapshot
+from app.core.catalog import load_catalog
 from app.core.config import get_settings
 from app.parsing.extract import WalletAddress
 
 _TIMEOUT = httpx.Timeout(8.0, connect=4.0)
 
+_GOPLUS_FLAGS = {
+    "phishing_activities": "фишинг",
+    "blackmail_activities": "вымогательство",
+    "stealing_attack": "хищение",
+    "fake_kyc": "поддельный KYC",
+    "malicious_mining_activities": "вредоносный майнинг",
+    "darkweb_transactions": "даркнет",
+    "cybercrime": "киберпреступление",
+    "money_laundering": "отмывание",
+    "financial_crime": "финансовое преступление",
+    "mixer": "миксер",
+    "sanctioned": "санкции",
+    "honeypot_related_address": "honeypot",
+    "gas_abuse": "злоупотребление gas",
+    "reinit": "повторная инициализация контракта",
+    "fake_token": "поддельный токен",
+}
+
+_CHAIN_ID = {"EVM": "1", "TRON": "tron"}
+
 
 def fetch_snapshot(address: WalletAddress, client: httpx.Client | None = None) -> AddressSnapshot:
+    catalog = load_catalog()
     if address.network == "TRON":
-        return _tron(address.value, client)
-    if address.network == "EVM":
-        return _evm(address.value, client)
-    return AddressSnapshot(
-        address=address.value,
-        network=address.network,
-        error=f"сеть {address.network} не поддерживается",
-    )
+        if not catalog.uses("wallet", "trongrid"):
+            snapshot = AddressSnapshot(
+                address=address.value,
+                network="TRON",
+                error="TronGrid выключен в каталоге",
+            )
+        else:
+            snapshot = _tron(address.value, client)
+    elif address.network == "EVM":
+        if not catalog.uses("wallet", "etherscan"):
+            snapshot = AddressSnapshot(
+                address=address.value,
+                network="EVM",
+                error="Etherscan выключен в каталоге",
+            )
+        else:
+            snapshot = _evm(address.value, client)
+    else:
+        snapshot = AddressSnapshot(
+            address=address.value,
+            network=address.network,
+            error=f"сеть {address.network} не поддерживается",
+        )
+
+    if catalog.uses("wallet", "goplus"):
+        snapshot = _with_goplus(snapshot, address, client)
+    return snapshot
 
 
 def fetch_snapshots(
@@ -40,6 +84,65 @@ def fetch_snapshots(
         return [fetch_snapshot(address, session) for address in addresses]
     finally:
         if own_client:
+            session.close()
+
+
+def paid_wallet_notes() -> tuple[str, ...]:
+    """Честный статус платных скорингов: включены, но коннектора нет."""
+    catalog = load_catalog()
+    notes: list[str] = []
+    for source in catalog.enabled("wallet", tier="paid"):
+        if catalog.secret(source):
+            notes.append(f"{source.id}: коннектор не реализован, оценка не выполнена")
+        else:
+            notes.append(f"{source.id}: ключ не задан, оценка не выполнена")
+    return tuple(notes)
+
+
+def _with_goplus(
+    snapshot: AddressSnapshot,
+    address: WalletAddress,
+    client: httpx.Client | None,
+) -> AddressSnapshot:
+    labels, error = _goplus(address, client)
+    if error and snapshot.error:
+        combined = f"{snapshot.error}; {error}"
+        return replace(snapshot, error=combined, risk_labels=labels)
+    if error and not snapshot.risk_labels and snapshot.error is None:
+        # Цепочка ответила, метки нет — это не ломает возраст и баланс.
+        return replace(snapshot, risk_labels=labels)
+    return replace(snapshot, risk_labels=labels)
+
+
+def _goplus(
+    address: WalletAddress,
+    client: httpx.Client | None,
+) -> tuple[tuple[str, ...], str | None]:
+    chain = _CHAIN_ID.get(address.network)
+    if chain is None:
+        return (), f"GoPlus: сеть {address.network} не поддерживается"
+    session = client or httpx.Client(timeout=_TIMEOUT)
+    try:
+        response = session.get(
+            f"https://api.gopluslabs.io/api/v1/address_security/{chain}",
+            params={"address": address.value},
+        )
+        response.raise_for_status()
+        payload = response.json()
+        result = payload.get("result")
+        if not isinstance(result, dict):
+            message = str(payload.get("message") or "нет данных")
+            return (), f"GoPlus: {message[:200]}"
+        labels = tuple(
+            title
+            for key, title in _GOPLUS_FLAGS.items()
+            if str(result.get(key) or "") == "1"
+        )
+        return labels, None
+    except httpx.HTTPError as error:
+        return (), f"GoPlus недоступен: {error.__class__.__name__}"
+    finally:
+        if client is None:
             session.close()
 
 

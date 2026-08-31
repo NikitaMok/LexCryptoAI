@@ -34,6 +34,7 @@ class AddressSnapshot:
     created_at: datetime | None = None
     tx_count: int | None = None
     usdt_balance: Decimal | None = None
+    risk_labels: tuple[str, ...] = ()
     error: str | None = None
 
 
@@ -44,8 +45,10 @@ class AddressScore:
     score: int | None
     band: str
     factors: tuple[str, ...]
+    labels: tuple[str, ...] = ()
     disclaimer: str = DISCLAIMER
     error: str | None = None
+    source_notes: tuple[str, ...] = ()
 
     def to_dict(self) -> dict:
         return {
@@ -54,8 +57,10 @@ class AddressScore:
             "score": self.score,
             "band": self.band,
             "factors": list(self.factors),
+            "labels": list(self.labels),
             "disclaimer": self.disclaimer,
             "error": self.error,
+            "source_notes": list(self.source_notes),
         }
 
 
@@ -78,6 +83,7 @@ def score_snapshot(
             score=None,
             band="нет данных",
             factors=(),
+            labels=snapshot.risk_labels,
             error=snapshot.error,
         )
 
@@ -112,6 +118,15 @@ def score_snapshot(
         points += 10
         factors.append("нулевой баланс USDT")
 
+    if snapshot.risk_labels:
+        points += 40
+        if any(
+            label in snapshot.risk_labels
+            for label in ("санкции", "миксер", "фишинг", "отмывание", "киберпреступление")
+        ):
+            points += 20
+        factors.append("публичные метки риска: " + ", ".join(snapshot.risk_labels))
+
     score = min(100, points)
     if score >= threshold:
         band = BAND_HIGH
@@ -131,4 +146,5 @@ def score_snapshot(
         score=score,
         band=band,
         factors=tuple(factors),
+        labels=snapshot.risk_labels,
     )
