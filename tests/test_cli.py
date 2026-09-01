@@ -61,15 +61,19 @@ class TestOutput:
         assert "3 млн рублей" in output
         assert "требует сверки редакции" not in output
 
-    def test_article_7_gap_is_not_invented(self):
-        from app.norms.index import Citation, NormIndex
+    def test_article_7_point_2_is_quoted_not_invented(self, capsys):
+        from app.norms.index import NormIndex
 
-        norms = NormIndex.load()
-        found = norms.resolve(Citation(act="115-ФЗ", article="7"))
-        empty = [norm for norm in found if not norm.has_text]
+        found = NormIndex.load().resolve_ref("115-ФЗ", "ст. 7 п. 2")
+        assert found
+        assert found[0].has_text
+        assert "уклонение от процедур обязательного контроля" in found[0].text
 
-        assert empty
-        assert all(norm.note for norm in empty)
+        code = main(["--search", "уклонение от процедур обязательного контроля"])
+        output = capsys.readouterr().out
+        assert code == 0
+        assert "уклонение от процедур обязательного контроля" in output
+        assert "текст не выверен" not in output
 
     def test_deferred_block_present_on_compliant(self, compliant_docx: Path, capsys):
         main([str(compliant_docx), "--on", "2026-09-01"])

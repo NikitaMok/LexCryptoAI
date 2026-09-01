@@ -137,6 +137,8 @@ def print_counterparties(parties: list) -> None:
         print(who)
         if payload.get("inn"):
             print(f"    ИНН {payload['inn']}")
+        if payload.get("foreign"):
+            print("    иностранная сторона")
         if payload.get("summary"):
             print(_wrap(str(payload["summary"]), indent="    "))
         for hit in payload.get("hits") or []:

@@ -13,6 +13,7 @@ import re
 from dataclasses import dataclass
 
 from app.llm.client import LlmReply, complete
+from app.parsing.extract import WalletAddress, extract_wallet_addresses
 from app.rules.contract import ContractView
 from app.rules.guardrail import CircumventionAttempt, assert_clean, inspect
 
@@ -41,6 +42,8 @@ class PartyNote:
     name: str
     inn: str | None
     role: str
+    country: str | None = None
+    registration_number: str | None = None
 
 
 @dataclass(frozen=True)
@@ -58,6 +61,7 @@ class ClauseAnalysis:
     detail: str
     parties: tuple[PartyNote, ...] = ()
     notes: tuple[ClauseNote, ...] = ()
+    wallets: tuple[WalletAddress, ...] = ()
 
     def to_dict(self) -> dict:
         return {
@@ -65,7 +69,14 @@ class ClauseAnalysis:
             "model": self.model,
             "detail": self.detail,
             "parties": [
-                {"name": item.name, "inn": item.inn, "role": item.role} for item in self.parties
+                {
+                    "name": item.name,
+                    "inn": item.inn,
+                    "role": item.role,
+                    "country": item.country,
+                    "registration_number": item.registration_number,
+                }
+                for item in self.parties
             ],
             "notes": [
                 {
@@ -75,6 +86,9 @@ class ClauseAnalysis:
                     "present": item.present,
                 }
                 for item in self.notes
+            ],
+            "wallets": [
+                {"value": item.value, "network": item.network} for item in self.wallets
             ],
         }
 
@@ -94,10 +108,16 @@ def _prompt(text: str) -> str:
         "Если явления в тексте нет — present: false, quote и reading пустые.\n"
         "quote — дословный фрагмент договора, не пересказ.\n\n"
         "Верни JSON вида:\n"
-        '{"parties":[{"name":"...","inn":null,"role":"покупатель|поставщик|иное"}],'
+        '{"parties":[{"name":"...","inn":null,"country":null,'
+        '"registration_number":null,"role":"покупатель|поставщик|иное"}],'
+        '"wallets":[{"value":"T... или 0x...","network":"TRON|EVM"}],'
         '"notes":[{"code":"FTC-004","present":true,"quote":"...","reading":"..."}]}\n\n'
         "Коды notes — только из списка:\n"
         f"{topics}\n\n"
+        "Для parties: иностранного поставщика выпиши как в договоре "
+        "(наименование, страна, регистрационный номер, если они есть в тексте). "
+        "inn — только российский ИНН из текста, иначе null. "
+        "Для wallets — только адреса, которые буквально есть в договоре.\n\n"
         "Текст договора:\n"
         f"{body}"
     )
@@ -139,13 +159,50 @@ def _parse_parties(raw: object, contract: str) -> tuple[PartyNote, ...]:
         inn_raw = str(item.get("inn") or "").strip()
         inn = inn_raw if inn_raw.isdigit() and inn_raw in contract else None
         role = str(item.get("role") or "иное").strip()[:40]
+        country_raw = " ".join(str(item.get("country") or "").split())
+        country = country_raw[:80] if country_raw and country_raw.lower() in haystack else None
+        reg_raw = " ".join(str(item.get("registration_number") or "").split())
+        registration_number = (
+            reg_raw[:80] if reg_raw and reg_raw in contract else None
+        )
         try:
             assert_clean(name)
             assert_clean(role)
+            if country:
+                assert_clean(country)
+            if registration_number:
+                assert_clean(registration_number)
         except CircumventionAttempt:
             continue
-        parties.append(PartyNote(name=name, inn=inn, role=role))
+        parties.append(
+            PartyNote(
+                name=name,
+                inn=inn,
+                role=role,
+                country=country,
+                registration_number=registration_number,
+            )
+        )
     return tuple(parties)
+
+
+def _parse_wallets(raw: object, contract: str) -> tuple[WalletAddress, ...]:
+    if not isinstance(raw, list):
+        return ()
+    known = extract_wallet_addresses(contract)
+    allowed = {item.value: item for item in known}
+    wallets: list[WalletAddress] = []
+    seen: set[str] = set()
+    for item in raw:
+        if isinstance(item, dict):
+            value = str(item.get("value") or "").strip()
+        else:
+            value = str(item or "").strip()
+        if value not in allowed or value in seen:
+            continue
+        seen.add(value)
+        wallets.append(allowed[value])
+    return tuple(wallets)
 
 
 def _parse_notes(raw: object, contract: str) -> tuple[ClauseNote, ...]:
@@ -189,6 +246,7 @@ def _from_reply(reply: LlmReply, contract: str) -> ClauseAnalysis:
 
     parties = _parse_parties(payload.get("parties"), contract)
     notes = _parse_notes(payload.get("notes"), contract)
+    wallets = _parse_wallets(payload.get("wallets"), contract)
     detail = "локальная модель разобрала оговорки, которые не ловятся регулярками"
     assert_clean(detail)
     return ClauseAnalysis(
@@ -197,6 +255,7 @@ def _from_reply(reply: LlmReply, contract: str) -> ClauseAnalysis:
         detail=detail,
         parties=parties,
         notes=notes,
+        wallets=wallets,
     )
 
 

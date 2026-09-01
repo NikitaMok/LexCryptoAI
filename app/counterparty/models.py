@@ -15,9 +15,17 @@ NOT_PERFORMED = "сверка не выполнена"
 NO_RUSSIAN_INN = (
     "российского ИНН в тексте нет; сверка по ЕГРЮЛ, Rusprofile и СБИС не выполнялась"
 )
-FOREIGN_NO_SOURCE = (
-    "иностранный контрагент: источника по юрисдикции регистрации нет, сверка не выполнена"
+FOREIGN_NOT_PERFORMED = "иностранный контрагент: сверка не выполнена"
+FOREIGN_NOT_FOUND = (
+    "в открытых иностранных реестрах запись по наименованию не найдена"
 )
+FOREIGN_FOUND = (
+    "запись в открытом иностранном реестре найдена; это не подтверждение правоспособности"
+)
+FOREIGN_NAME_MISMATCH = (
+    "запись в иностранном реестре найдена, наименование в договоре с ней не совпадает"
+)
+FOREIGN_INACTIVE = "по открытому реестру организация недействующая или исключена"
 
 
 @dataclass(frozen=True)
@@ -28,6 +36,8 @@ class SourceHit:
     legal_name: str | None = None
     inn: str | None = None
     ogrn: str | None = None
+    registration_number: str | None = None
+    jurisdiction: str | None = None
     status: str | None = None
     name_match: bool | None = None
     detail: str = ""
@@ -40,6 +50,8 @@ class SourceHit:
             "legal_name": self.legal_name,
             "inn": self.inn,
             "ogrn": self.ogrn,
+            "registration_number": self.registration_number,
+            "jurisdiction": self.jurisdiction,
             "status": self.status,
             "name_match": self.name_match,
             "detail": self.detail,
@@ -87,10 +99,26 @@ def skipped(source_id: str, reason: str) -> SourceHit:
     return SourceHit(source_id=source_id, performed=False, found=False, detail=reason)
 
 
+def _inactive(status: str | None) -> bool:
+    if not status:
+        return False
+    lowered = status.lower()
+    markers = (
+        "ликвидир",
+        "исключ",
+        "прекращ",
+        "inactive",
+        "dissolved",
+        "struck",
+        "revoked",
+        "retired",
+    )
+    return any(marker in lowered for marker in markers)
+
+
 def summarize(hits: tuple[SourceHit, ...], *, foreign: bool, has_inn: bool) -> str:
-    if foreign and not has_inn:
-        assert_clean(FOREIGN_NO_SOURCE)
-        return FOREIGN_NO_SOURCE
+    if foreign:
+        return _summarize_foreign(hits)
     if not has_inn:
         assert_clean(NO_RUSSIAN_INN)
         return NO_RUSSIAN_INN
@@ -104,11 +132,7 @@ def summarize(hits: tuple[SourceHit, ...], *, foreign: bool, has_inn: bool) -> s
         assert_clean(text)
         return text
     mismatch = [hit for hit in found if hit.name_match is False]
-    liquidated = [
-        hit
-        for hit in found
-        if hit.status and ("ликвидир" in hit.status.lower() or "исключ" in hit.status.lower())
-    ]
+    liquidated = [hit for hit in found if _inactive(hit.status)]
     if liquidated:
         text = "по реестру организация ликвидирована либо исключена из ЕГРЮЛ"
         assert_clean(text)
@@ -120,3 +144,22 @@ def summarize(hits: tuple[SourceHit, ...], *, foreign: bool, has_inn: bool) -> s
     text = "запись в открытом реестре найдена; это не подтверждение правоспособности"
     assert_clean(text)
     return text
+
+
+def _summarize_foreign(hits: tuple[SourceHit, ...]) -> str:
+    performed = [hit for hit in hits if hit.performed]
+    if not performed:
+        assert_clean(FOREIGN_NOT_PERFORMED)
+        return FOREIGN_NOT_PERFORMED
+    found = [hit for hit in performed if hit.found]
+    if not found:
+        assert_clean(FOREIGN_NOT_FOUND)
+        return FOREIGN_NOT_FOUND
+    if any(_inactive(hit.status) for hit in found):
+        assert_clean(FOREIGN_INACTIVE)
+        return FOREIGN_INACTIVE
+    if any(hit.name_match is False for hit in found):
+        assert_clean(FOREIGN_NAME_MISMATCH)
+        return FOREIGN_NAME_MISMATCH
+    assert_clean(FOREIGN_FOUND)
+    return FOREIGN_FOUND

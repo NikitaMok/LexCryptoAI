@@ -24,6 +24,14 @@ class CheckResult:
     counterparties: tuple[PartyCheck, ...]
 
 
+def _merge_llm_wallets(contract: ContractView, llm: ClauseAnalysis) -> None:
+    existing = {item.value for item in contract.facts.wallet_addresses}
+    for wallet in llm.wallets:
+        if wallet.value not in existing:
+            contract.facts.wallet_addresses.append(wallet)
+            existing.add(wallet.value)
+
+
 def run_check(
     contract: ContractView,
     *,
@@ -34,6 +42,7 @@ def run_check(
     review_parties: Callable[..., list[PartyCheck]] | None = None,
 ) -> CheckResult:
     llm = (analyze or analyze_clauses)(contract)
+    _merge_llm_wallets(contract, llm)
     report = evaluate(contract, moment=moment)
     scores = (score_addresses or score_contract_addresses)(contract)
     parties = (review_parties or review_counterparties)(

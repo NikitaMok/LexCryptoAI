@@ -57,7 +57,8 @@ _RU_ORG = re.compile(
     re.IGNORECASE,
 )
 _EN_ORG = re.compile(
-    r"\b[A-Z][A-Za-z0-9&.,' \-]{2,80}(?:Co\.,?\s*Ltd\.?|Ltd\.|Inc\.|GmbH|LLC)\b"
+    r"\b[A-Z][A-Za-z0-9&.,' \-]{2,80}"
+    r"(?:Co\.,?\s*Ltd\.?|Pte\.?\s*Ltd\.?|Ltd\.|Limited|Inc\.|GmbH|LLC|Corp\.)\b"
 )
 
 _FOREIGN_TRADE = re.compile(r"внешнеторгов\w*", re.IGNORECASE)

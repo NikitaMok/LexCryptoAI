@@ -53,7 +53,7 @@ def _offline_parties(contract):
 
     return review_counterparties(
         contract,
-        lookup=lambda inn, name, client=None: (),
+        lookup=lambda inn, name, client=None, **_: (),
     )
 
 

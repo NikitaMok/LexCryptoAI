@@ -6,9 +6,7 @@ from app.rules.registry import load_rules
 # Нормы, процитированные в матрице, но не выверенные по действующей редакции.
 # Список должен только сокращаться. Новая запись здесь означает осознанный
 # пробел, а не забытую сверку.
-ACKNOWLEDGED_GAPS = {
-    ("115-ФЗ", "7"),
-}
+ACKNOWLEDGED_GAPS: set[tuple[str, str]] = set()
 
 
 @pytest.fixture(scope="module")
@@ -167,12 +165,13 @@ class TestKeyNormsAreVerbatim:
         assert found[0].has_text
         assert "не администрируемого цифровым депозитарием" in found[0].text
 
-    def test_article_7_point_2_gap_is_explicit(self, norms):
+    def test_article_7_point_2_grounds_are_verbatim(self, norms):
         found = norms.resolve_ref("115-ФЗ", "ст. 7 п. 2")
 
         assert found
-        assert all(not norm.has_text for norm in found)
-        assert all(norm.note for norm in found)
+        assert found[0].has_text
+        assert "уклонение от процедур обязательного контроля" in found[0].text
+        assert "необычный характер сделки" in found[0].text
 
     def test_bank_registration_duty(self, norms):
         found = norms.resolve_ref("181-И", "п. 5.1")

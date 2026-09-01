@@ -32,6 +32,8 @@ def test_free_sources_are_on_by_default():
         "egrul",
         "rusprofile",
         "saby",
+        "opencorporates",
+        "gleif",
     }
 
 

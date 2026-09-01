@@ -412,6 +412,8 @@ def render_pdf(
             payload = item.to_dict() if hasattr(item, "to_dict") else item
             who = payload.get("name") or payload.get("inn") or "сторона не названа"
             story.append(Paragraph(_xml(str(who)), styles["body"]))
+            if payload.get("foreign"):
+                story.append(Paragraph(_xml("иностранная сторона"), styles["indent"]))
             if payload.get("inn"):
                 story.append(Paragraph(_xml(f"ИНН {payload['inn']}"), styles["indent"]))
             story.append(Paragraph(_xml(str(payload.get("summary") or "")), styles["indent"]))

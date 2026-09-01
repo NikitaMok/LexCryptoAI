@@ -55,6 +55,7 @@ class TestClauseAnalysis:
                     "reading": "модель додумала оговорку",
                 }
             ],
+            "wallets": [{"value": "TQn9Y2khEsLJW1ChVWFMSMeRDow5KcbLSE", "network": "TRON"}],
         }
         result = analyze_clauses(
             _view(COMPLIANT_SNIPPET),
@@ -62,6 +63,7 @@ class TestClauseAnalysis:
         )
 
         assert result.notes[0].quote == ""
+        assert result.wallets == ()
 
     def test_article_citation_in_reading_is_dropped(self):
         payload = {

@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     kontur_focus_key: str = ""
     spark_api_key: str = ""
     sbis_api_key: str = ""
+    # Не обязателен: без токена OpenCorporates отвечает с лимитом публичного API.
+    opencorporates_api_token: str = ""
 
     chroma_persist_dir: Path = PROJECT_ROOT / "data" / "chroma"
     chroma_collection: str = "legal_norms"

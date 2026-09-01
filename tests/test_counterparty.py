@@ -1,6 +1,6 @@
 from datetime import date
 
-from app.counterparty.models import names_match, summarize
+from app.counterparty.models import SourceHit, names_match, summarize
 from app.counterparty.providers import lookup_free_sources
 from app.counterparty.service import review_counterparties
 from app.llm.clauses import ClauseAnalysis
@@ -33,6 +33,7 @@ class TestSummarize:
         text = summarize((), foreign=True, has_inn=False)
 
         assert "сверка не выполнена" in text
+        assert "иностранн" in text.lower()
 
 
 class TestEgrulMock:
@@ -101,11 +102,104 @@ class TestEgrulMock:
             assert "сверка не выполнена" in hit.detail or "капч" in hit.detail.lower()
 
 
+class TestForeignLookup:
+    def test_russian_inn_does_not_query_foreign_registries(self):
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            host = request.url.host or ""
+            seen.append(host)
+            if "nalog.gov.ru" in host and request.method == "POST":
+                return httpx.Response(200, json={"t": "token-1"})
+            if "search-result" in (request.url.path or ""):
+                return httpx.Response(200, json={"rows": []})
+            return httpx.Response(200, text="<html><h1>card</h1></html>")
+
+        transport = httpx.MockTransport(handler)
+        with httpx.Client(transport=transport) as client:
+            lookup_free_sources("6659123456", "ООО «Уралимпорт»", client, foreign=False)
+
+        assert not any("opencorporates" in host or "gleif" in host for host in seen)
+
+    def test_name_match_is_found(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            host = request.url.host or ""
+            if "opencorporates.com" in host:
+                return httpx.Response(
+                    200,
+                    json={
+                        "results": {
+                            "companies": [
+                                {
+                                    "company": {
+                                        "name": "SHENZHEN PRECISION MACHINERY CO., LTD.",
+                                        "company_number": "91440300MA5XXXXX",
+                                        "jurisdiction_code": "cn",
+                                        "inactive": False,
+                                        "current_status": "Active",
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                )
+            if "gleif.org" in host:
+                return httpx.Response(200, json={"data": []})
+            return httpx.Response(503, text="offline")
+
+        transport = httpx.MockTransport(handler)
+        with httpx.Client(transport=transport) as client:
+            hits = lookup_free_sources(
+                None,
+                "Shenzhen Precision Machinery Co., Ltd.",
+                client,
+                foreign=True,
+            )
+
+        oc = next(hit for hit in hits if hit.source_id == "opencorporates")
+        assert oc.performed
+        assert oc.found
+        assert oc.name_match is True
+        assert oc.jurisdiction == "cn"
+
+    def test_http_error_is_not_success(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(503, text="offline")
+
+        transport = httpx.MockTransport(handler)
+        with httpx.Client(transport=transport) as client:
+            hits = lookup_free_sources(
+                None,
+                "Shenzhen Precision Machinery Co., Ltd.",
+                client,
+                foreign=True,
+            )
+
+        for source_id in ("opencorporates", "gleif"):
+            hit = next(item for item in hits if item.source_id == source_id)
+            assert not hit.performed
+            assert "сверка не выполнена" in hit.detail
+
+    def test_foreign_summary_from_hit(self):
+        hit = SourceHit(
+            source_id="opencorporates",
+            performed=True,
+            found=True,
+            legal_name="SHENZHEN PRECISION MACHINERY CO., LTD.",
+            name_match=True,
+            status="Active",
+            detail="OpenCorporates: found",
+        )
+        text = summarize((hit,), foreign=True, has_inn=False)
+        assert "найден" in text
+        assert "правоспособности" in text
+
+
 class TestReview:
     def test_no_identifiers_stated_plainly(self):
         checks = review_counterparties(
             _view("1.1. Стороны заключили договор."),
-            lookup=lambda inn, name, client=None: (),
+            lookup=lambda inn, name, client=None, **_: (),
         )
 
         assert checks[0].summary.startswith("в тексте нет")

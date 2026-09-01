@@ -61,8 +61,8 @@ def review_counterparties(
     fetch = lookup or lookup_free_sources
     checks: list[PartyCheck] = []
     for name, inn in rows:
-        hits = tuple(fetch(inn, name))
         foreign = (not inn) and _foreign_name(name)
+        hits = tuple(fetch(inn, name, foreign=foreign))
         summary = summarize(hits, foreign=foreign, has_inn=bool(inn))
         checks.append(
             PartyCheck(name=name, inn=inn, foreign=foreign, hits=hits, summary=summary)

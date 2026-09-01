@@ -73,8 +73,9 @@ function partyHtml(parties) {
   const blocks = parties.map((item) => {
     const who = esc(item.name || item.inn || "сторона не названа");
     const inn = item.inn ? `<p>ИНН ${esc(item.inn)}</p>` : "";
+    const foreign = item.foreign ? `<p>иностранная сторона</p>` : "";
     const hits = (item.hits || []).map((hit) => `<p>${esc(hit.detail || hit.source)}</p>`).join("");
-    return `<article class="finding"><p>${who}</p>${inn}<p>${esc(item.summary || "")}</p>${hits}</article>`;
+    return `<article class="finding"><p>${who}</p>${foreign}${inn}<p>${esc(item.summary || "")}</p>${hits}</article>`;
   }).join("");
   return `<h2>3. Контрагент</h2>${blocks}`;
 }

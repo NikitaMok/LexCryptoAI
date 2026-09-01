@@ -77,6 +77,19 @@ counterparty:
     what: "открытые сведения о контрагенте на saby.ru (СБИС)"
     base_url: https://saby.ru
 
+  - id: opencorporates
+    enabled: true
+    tier: free
+    what: "открытые карточки иностранных компаний (OpenCorporates), без ключа с лимитом"
+    base_url: https://api.opencorporates.com
+    env_key: OPENCORPORATES_API_TOKEN
+
+  - id: gleif
+    enabled: true
+    tier: free
+    what: "поиск иностранной компании по реестру LEI (GLEIF), без ключа"
+    base_url: https://api.gleif.org
+
   # --- платные, выключены ---
   - id: kontur_focus
     enabled: false
