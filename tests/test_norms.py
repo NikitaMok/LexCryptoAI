@@ -172,6 +172,9 @@ class TestKeyNormsAreVerbatim:
         assert found[0].has_text
         assert "уклонение от процедур обязательного контроля" in found[0].text
         assert "необычный характер сделки" in found[0].text
+        assert "правила внутреннего контроля" in found[0].text
+        assert "цифровых депозитариях" in found[0].text
+        assert "организациях, осуществляющих обмен цифровых валют" in found[0].text
 
     def test_bank_registration_duty(self, norms):
         found = norms.resolve_ref("181-И", "п. 5.1")

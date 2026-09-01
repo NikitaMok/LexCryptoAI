@@ -1,7 +1,9 @@
 """Снимок перечня государств, не выполняющих рекомендации ФАТФ.
 
 Источник и дата снимка лежат в YAML. Это не перечень Правительства РФ:
-его на дату снимка нет, и заключение не должно делать вид, что он есть.
+его на дату снимка нет. Приказ Росфинмониторинга № 361 — отдельный акт
+(Иран и КНДР); Мьянма есть только в снимке ФАТФ. Заключение не делает вид,
+что российский перечень Правительства опубликован.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ LIST_PATH = PROJECT_ROOT / "config" / "fatf_jurisdictions.yaml"
 class Jurisdiction:
     iso2: str
     names: tuple[str, ...]
+    in_rf_order_361: bool = False
 
 
 @dataclass(frozen=True)
@@ -50,7 +53,11 @@ def load_fatf_snapshot(path: Path | None = None) -> FatfSnapshot:
     source = path or LIST_PATH
     raw = yaml.safe_load(source.read_text(encoding="utf-8"))
     jurisdictions = tuple(
-        Jurisdiction(iso2=item["iso2"], names=tuple(item["names"]))
+        Jurisdiction(
+            iso2=item["iso2"],
+            names=tuple(item["names"]),
+            in_rf_order_361=bool(item.get("in_rf_order_361")),
+        )
         for item in raw["jurisdictions"]
     )
     if not jurisdictions:

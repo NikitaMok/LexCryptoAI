@@ -289,12 +289,40 @@ def depositary_registry_reference(contract: ContractView) -> Outcome:
         "депозитарий назван с реестровыми данными. Публичный перечень цифровых "
         "депозитариев Банка России на дату проверки не опубликован "
         "(навигатор допуска — cbr.ru/admissionfinmarket/navigator/cd, "
-        "обновление 28.08.2026; акты о ведении реестра и Положение Банка России "
-        "от 27.08.2026 № 890-П — на регистрации в Минюсте; приём документов "
+        "обновление 28.08.2026; страница реестров cbr.ru/registries — 01.09.2026, "
+        "списка цифровых депозитариев среди опубликованных нет; "
+        "Положение Банка России от 27.08.2026 № 890-П и Указание от 27.08.2026 "
+        "№ 7429-У — на регистрации в Минюсте; приём документов "
         "по процедуре «4010 Соискатели» — с даты вступления 890-П в силу; "
         "субъекты ЭПР вправе подать документы до 01.09.2027). "
         "Сверка записи в реестре не выполнялась",
         _clause_numbers(contract, r"депозитари", r"реестр"),
+    )
+
+
+@register("foreign_trade_settlement_basis")
+def foreign_trade_settlement_basis(contract: ContractView) -> Outcome:
+    if contract.has_any(r"лиц\w*\s+организующ\w+\s+обращен\w+\s+цифров"):
+        return _passed(
+            "расчёты через лицо, организующее обращение цифровых валют",
+            _clause_numbers(contract, r"организующ\w+\s+обращен"),
+        )
+
+    if contract.facts.mentions_foreign_trade and contract.has_any(
+        r"средств\w+\s+платеж",
+        r"встречн\w+\s+предоставлен",
+        r"оплат\w+\s+.{0,80}цифров\w+\s+валют",
+        r"расчёты\s+цифровой\s+валютой",
+    ):
+        return _passed(
+            "прямые расчёты: внешнеторговое основание зафиксировано "
+            "(п. 2 ч. 1 ст. 30 № 282-ФЗ)",
+            _clause_numbers(contract, r"внешнеторгов"),
+        )
+
+    return _failed(
+        "расчёты не через лицо, организующее обращение, и нет явного "
+        "внешнеторгового основания п. 2 ч. 1 ст. 30"
     )
 
 
@@ -556,17 +584,33 @@ def fatf_jurisdiction_addressed(contract: ContractView) -> Outcome:
     matched = snapshot.match_in(contract.text)
     if matched:
         names = ", ".join(item.names[0] for item in matched)
-        return _failed(
+        in_order = [item for item in matched if item.in_rf_order_361]
+        only_fatf = [item for item in matched if not item.in_rf_order_361]
+        parts = [
             "в договоре названо государство из снимка перечня ФАТФ "
-            f"({snapshot.as_of}): {names}; нет оговорки об обязательном контроле "
-            "независимо от суммы",
+            f"({snapshot.as_of}): {names}"
+        ]
+        if in_order:
+            parts.append(
+                "совпадает с приказом Росфинмониторинга от 10.11.2011 № 361: "
+                + ", ".join(item.names[0] for item in in_order)
+            )
+        if only_fatf:
+            parts.append(
+                "в приказе Росфинмониторинга № 361 отсутствует: "
+                + ", ".join(item.names[0] for item in only_fatf)
+            )
+        parts.append("нет оговорки об обязательном контроле независимо от суммы")
+        return _failed(
+            "; ".join(parts),
             _clause_numbers(contract, re.escape(matched[0].names[0])),
         )
 
     return _unresolved(
         "юрисдикция организации, администрирующей адрес-идентификатор, "
         f"в договоре не названа. Снимок перечня ФАТФ от {snapshot.as_of} "
-        "подменяет официальный перечень Правительства РФ, пока тот не опубликован"
+        "подменяет официальный перечень Правительства РФ, пока тот не опубликован. "
+        "Приказ Росфинмониторинга от 10.11.2011 № 361 — Иран и КНДР, без Мьянмы"
     )
 
 

@@ -137,8 +137,16 @@ class TestApplicability:
 
     def test_deferred_rule_activates_later(self, violating, rules):
         report = evaluate(violating, rules, moment=date(2027, 7, 1))
+        finding = report.by_code("ADR-005")
 
-        assert report.by_code("ADR-005").status is not FindingStatus.DEFERRED
+        assert finding.status is FindingStatus.FAILED
+        assert "внешнеторгового основания" in finding.evidence
+
+    def test_adr_005_passes_on_compliant_when_in_force(self, compliant, rules):
+        report = evaluate(compliant, rules, moment=date(2027, 7, 1))
+
+        assert report.by_code("ADR-005").status is FindingStatus.PASSED
+        assert report.status is ContractStatus.GREEN
 
     def test_rule_without_date_stays_deferred(self, violating, rules):
         """Требование о репатриации не установлено, дата отсутствует."""

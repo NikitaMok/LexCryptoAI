@@ -24,6 +24,17 @@ class TestFatfSnapshot:
 
         assert snapshot.as_of == "2026-06-19"
         assert {item.iso2 for item in snapshot.jurisdictions} == {"KP", "IR", "MM"}
+        assert {item.iso2 for item in snapshot.jurisdictions if item.in_rf_order_361} == {
+            "KP",
+            "IR",
+        }
+
+    def test_myanmar_is_only_in_fatf_snapshot(self):
+        snapshot = load_fatf_snapshot()
+        myanmar = next(item for item in snapshot.jurisdictions if item.iso2 == "MM")
+
+        assert not myanmar.in_rf_order_361
+        assert snapshot.match_in("биржа в Мьянме")
 
     def test_matches_iran_and_ignores_china(self):
         snapshot = load_fatf_snapshot()
@@ -46,6 +57,16 @@ class TestFatfPredicate:
 
         assert outcome.verdict is Verdict.FAILED
         assert "Иран" in outcome.evidence
+        assert "361" in outcome.evidence
+
+    def test_fails_when_myanmar_named_without_clause(self):
+        outcome = fatf_jurisdiction_addressed(
+            _view("1.1. Адрес администрирует организация, зарегистрированная в Мьянме.")
+        )
+
+        assert outcome.verdict is Verdict.FAILED
+        assert "Мьянма" in outcome.evidence
+        assert "отсутствует" in outcome.evidence
 
     def test_passes_when_fatf_clause_present(self):
         outcome = fatf_jurisdiction_addressed(
